@@ -1,0 +1,33 @@
+# Manual smoke test: replace GIT_CONTEXT, IMAGE_DESTINATION, and secret reference.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kaniko-manual-test
+  namespace: user-apps
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: kaniko
+          image: gcr.io/kaniko-project/executor:v1.23.2
+          args:
+            - "--dockerfile=Dockerfile"
+            - "--context=git://github.com/octocat/Hello-World.git#refs/heads/master"
+            - "--destination=YOUR_REGISTRY/YOUR_PROJECT/test:manual"
+          env:
+            - name: DOCKER_CONFIG
+              value: /kaniko/.docker
+          volumeMounts:
+            - name: docker-config
+              mountPath: /kaniko/.docker
+              readOnly: true
+      volumes:
+        - name: docker-config
+          secret:
+            secretName: harbor-regcred
+            items:
+              - key: .dockerconfigjson
+                path: config.json

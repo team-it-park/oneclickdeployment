@@ -14,35 +14,20 @@ import (
 	"net/mail"
 	"net/smtp"
 	"os"
-	"sync"
+	"strconv"
 
-	"github.com/NikhilSharmaWe/go-vercel-app/vercel/internal"
 	"github.com/NikhilSharmaWe/go-vercel-app/vercel/models"
 	"github.com/NikhilSharmaWe/go-vercel-app/vercel/store"
 	"github.com/google/go-github/github"
-	"github.com/google/uuid"
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo/v4"
-
-	amqp "github.com/rabbitmq/amqp091-go"
 
 	"gorm.io/driver/postgres"
 
 	"gorm.io/gorm"
 )
 
-// For rabbitMQ name for queue and routing key are the same in all 4 cases due to direct type exchange
-
-// The application requires 2 exchanges: "upload" and "deploy"
-// And 4 queues
-
-// For upload exchange:
-// upload-request: request to upload server will be load balanced so same name for all instances of upload servers
-// upload-response-{instance_id}: requires instance id to handle the response on the same instance which makes the request to the grpc server
-
-// For deploy exchange:
-// deploy-request
-// deploy-response-{instance_id}
+// Application is the Vercel web app (Echo).
 type Application struct {
 	CookieStore *sessions.CookieStore
 	store.UserStore
@@ -57,15 +42,10 @@ type Application struct {
 	SMTPHost    string
 	SMTPPort    string
 
-	UploadResponseClient *internal.RabbitClient
-	DeployResponseClient *internal.RabbitClient
-	ProjectChannels      map[string]chan models.RabbitMQResponse
-	PublishingConn       *amqp.Connection
-	RabbitMQInstanceID   string
-
-	RequestHandlerServerAddr string
-
-	sync.RWMutex
+	OrchestratorAddr           string
+	OrchestratorSharedSecret   string
+	OrchestratorGitRef         string
+	OrchestratorHTTPTimeout    time.Duration
 }
 
 func NewApplication() (*Application, error) {
@@ -81,44 +61,11 @@ func NewApplication() (*Application, error) {
 	smtpHost := os.Getenv("SMTP_HOST")
 	smtpPort := os.Getenv("SMTP_PORT")
 
-	rabbitMQUser := os.Getenv("RABBITMQ_USER")
-	rabbitMQPassword := os.Getenv("RABBITMQ_PASSWORD")
-	rabbitMQVhost := os.Getenv("RABBITMQ_VHOST")
-	rabbitMQAddr := os.Getenv("RABBITMQ_ADDR")
-
-	instanceID := uuid.NewString()
-
-	// each concurrent task should be done with new channel
-	// different connections should be used for publishing and consuming
-
-	consumingConnection, err := internal.ConnectRabbitMQ(rabbitMQUser, rabbitMQPassword, rabbitMQAddr, rabbitMQVhost)
-	if err != nil {
-		return nil, err
-	}
-
-	publishingConnection, err := internal.ConnectRabbitMQ(rabbitMQUser, rabbitMQPassword, rabbitMQAddr, rabbitMQVhost)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = internal.CreateNewQueueReturnClient(publishingConnection, "upload-request", true, true)
-	if err != nil {
-		return nil, err
-	}
-
-	uploadResponseClient, err := internal.CreateNewQueueReturnClient(consumingConnection, "upload-response-"+instanceID, true, true)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = internal.CreateNewQueueReturnClient(publishingConnection, "deploy-request", true, true)
-	if err != nil {
-		return nil, err
-	}
-
-	deployResponseClient, err := internal.CreateNewQueueReturnClient(consumingConnection, "deploy-response-"+instanceID, true, true)
-	if err != nil {
-		return nil, err
+	orchTimeout := 45 * time.Minute
+	if v := os.Getenv("ORCHESTRATOR_HTTP_TIMEOUT_MINUTES"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			orchTimeout = time.Duration(n) * time.Minute
+		}
 	}
 
 	return &Application{
@@ -132,12 +79,10 @@ func NewApplication() (*Application, error) {
 		AppPassword:              appPassword,
 		SMTPHost:                 smtpHost,
 		SMTPPort:                 smtpPort,
-		UploadResponseClient:     uploadResponseClient,
-		DeployResponseClient:     deployResponseClient,
-		RabbitMQInstanceID:       instanceID,
-		PublishingConn:           publishingConnection,
-		ProjectChannels:          make(map[string]chan models.RabbitMQResponse),
-		RequestHandlerServerAddr: os.Getenv("REQUEST_HANDLER_ADDR"),
+		OrchestratorAddr:         os.Getenv("ORCHESTRATOR_ADDR"),
+		OrchestratorSharedSecret: os.Getenv("ORCHESTRATOR_SHARED_SECRET"),
+		OrchestratorGitRef:       os.Getenv("ORCHESTRATOR_DEFAULT_GIT_REF"),
+		OrchestratorHTTPTimeout:  orchTimeout,
 	}, nil
 }
 

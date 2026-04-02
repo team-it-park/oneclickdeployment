@@ -4,14 +4,11 @@ go 1.22.2
 
 require (
 	github.com/google/go-github v17.0.0+incompatible
-	github.com/google/uuid v1.6.0
 	github.com/gorilla/sessions v1.2.2
 	github.com/gorilla/websocket v1.5.1
 	github.com/joho/godotenv v1.5.1
 	github.com/labstack/echo/v4 v4.11.4
-	github.com/rabbitmq/amqp091-go v1.9.0
 	golang.org/x/oauth2 v0.19.0
-	golang.org/x/sync v0.1.0
 	gorm.io/driver/postgres v1.5.7
 	gorm.io/gorm v1.25.9
 )

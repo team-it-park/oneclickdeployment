@@ -2,18 +2,14 @@ package app
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"time"
 
-	"github.com/NikhilSharmaWe/go-vercel-app/vercel/internal"
 	"github.com/NikhilSharmaWe/go-vercel-app/vercel/models"
 	"github.com/google/go-github/github"
-	amqp "github.com/rabbitmq/amqp091-go"
 	"golang.org/x/oauth2"
 
 	"gorm.io/gorm"
@@ -320,15 +316,11 @@ func (app *Application) HandleDeploy(c echo.Context) error {
 }
 
 func (app *Application) HandleProcessing(c echo.Context) error {
-	var (
-		upgrader = websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool {
-				return true
-			},
-		}
-		errCh  = make(chan error)
-		status = make(chan string)
-	)
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
 
 	projectID, err := getSession(c, "project_id")
 	if err != nil {
@@ -347,120 +339,27 @@ func (app *Application) HandleProcessing(c echo.Context) error {
 		c.Logger().Error(err)
 		return err
 	}
-
 	defer conn.Close()
 
-	app.ProjectChannels[projectID] = make(chan models.RabbitMQResponse)
-	defer delete(app.ProjectChannels, projectID)
+	writeWS := func(msg string) error {
+		return conn.WriteMessage(websocket.TextMessage, []byte(msg))
+	}
 
-	client, err := internal.NewRabbitMQClient(app.PublishingConn)
+	ctx, cancel := context.WithTimeout(context.Background(), app.orchestratorHTTPTimeout()+2*time.Minute)
+	defer cancel()
+
+	publicURL, err := app.CallOrchestratorBuildDeploy(ctx, repoEndpoint, projectID, func(phase string) error {
+		log.Printf("Project: %s phase: %s", projectID, phase)
+		return writeWS(phase)
+	})
 	if err != nil {
 		c.Logger().Error(err)
+		_ = writeWS("error: " + err.Error())
 		return err
 	}
 
-	go func() {
-		for message := range app.ProjectChannels[projectID] {
-			msg := message
-			if !msg.Success {
-				errCh <- errors.New(msg.Error)
-			}
-
-			switch msg.Type {
-			case "upload":
-				log.Printf("Project: %s: %s", projectID, "uploaded")
-				conn.WriteMessage(1, []byte("uploaded"))
-				status <- "uploaded"
-			case "deploy":
-				log.Printf("Project: %s: %s", projectID, "deployed")
-				conn.WriteMessage(1, []byte("deployed"))
-				status <- "deployed"
-			default:
-				errCh <- models.ErrInvalidResponseFromRabbitMQ
-			}
-		}
-	}()
-
-	uploadReq := models.UploadRequest{
-		GithubRepoEndpoint: repoEndpoint,
-		ProjectID:          projectID,
-	}
-
-	body, err := json.Marshal(uploadReq)
-	if err != nil {
-		c.Logger().Error(err)
-		return err
-	}
-
-	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancelFunc()
-
-	if err := client.Send(ctx, "upload", "upload-request", amqp.Publishing{
-		ContentType:  "application/json",
-		Body:         body,
-		ReplyTo:      "upload-response-" + app.RabbitMQInstanceID,
-		DeliveryMode: amqp.Persistent,
-	}); err != nil {
-		c.Logger().Error(err)
-		return err
-	}
-
-	log.Printf("Project: %s: %s", projectID, "uploading")
-	conn.WriteMessage(1, []byte("uploading"))
-
-	ticker := time.NewTicker(1 * time.Minute)
-
-	for {
-		select {
-		case err := <-errCh:
-			c.Logger().Error(err)
-			return err
-
-		case s := <-status:
-
-			switch s {
-			case "uploaded":
-				deployReq := models.DeployRequest{
-					ProjectID: projectID,
-				}
-
-				body, err := json.Marshal(deployReq)
-				if err != nil {
-					c.Logger().Error(err)
-					return err
-				}
-
-				ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancelFunc()
-
-				if err := client.Send(ctx, "deploy", "deploy-request", amqp.Publishing{
-					ContentType:  "application/json",
-					Body:         body,
-					ReplyTo:      "deploy-response-" + app.RabbitMQInstanceID,
-					DeliveryMode: amqp.Persistent,
-				}); err != nil {
-					c.Logger().Error(err)
-					return err
-				}
-
-				log.Printf("Project: %s: %s", projectID, "deploying")
-				conn.WriteMessage(1, []byte("deploying"))
-
-				ticker.Stop()
-				ticker.Reset(10 * time.Minute)
-
-			case "deployed":
-				conn.WriteMessage(1, []byte(fmt.Sprint("WEBSITE ENDPOINT IS: ", projectID, app.RequestHandlerServerAddr)))
-				return nil
-
-			default:
-				c.Logger().Error(models.ErrUnexpected)
-				return models.ErrUnexpected
-			}
-
-		case <-ticker.C:
-			c.Logger().Error(models.ErrUploadServiceTimeout)
-			return echo.NewHTTPError(http.StatusRequestTimeout, models.ErrUploadServiceTimeout)
-		}
-	}
+	log.Printf("Project: %s deployed at %s", projectID, publicURL)
+	_ = writeWS("deployed")
+	_ = writeWS(fmt.Sprintf("WEBSITE ENDPOINT IS: %s", publicURL))
+	return nil
 }

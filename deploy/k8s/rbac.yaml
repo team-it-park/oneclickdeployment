@@ -1,0 +1,40 @@
+# ServiceAccount for the orchestrator (run the deploy binary with this SA when in-cluster).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: go-vercel-orchestrator
+  namespace: default
+---
+# Role scoped to user-apps: Jobs, Secrets, Deployments, Services, Ingresses, Pods (for Kaniko status).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: go-vercel-orchestrator
+  namespace: user-apps
+rules:
+  - apiGroups: [""]
+    resources: ["secrets", "services", "pods", "pods/log"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: go-vercel-orchestrator
+  namespace: user-apps
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: go-vercel-orchestrator
+subjects:
+  - kind: ServiceAccount
+    name: go-vercel-orchestrator
+    namespace: default

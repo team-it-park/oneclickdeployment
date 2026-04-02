@@ -1,12 +1,10 @@
 package main
 
 import (
-	"context"
 	"log"
 
 	"github.com/NikhilSharmaWe/go-vercel-app/deploy/app"
 	"github.com/joho/godotenv"
-	"golang.org/x/sync/errgroup"
 )
 
 func init() {
@@ -16,33 +14,17 @@ func init() {
 }
 
 func main() {
-	application, err := app.NewApplication()
-	if err != nil {
-		log.Fatal(err)
+	cfg := app.LoadConfig()
+	if cfg.ListenAddr == "" {
+		log.Fatal("ADDR must be set (e.g. :8081)")
 	}
 
-	defer application.ConsumingClient.Close()
-
-	deployRequestMSGBus, err := setupRabbitMQForStartup(application)
+	k8s, err := app.K8sClient()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("kubernetes client: ", err)
 	}
 
-	g, _ := errgroup.WithContext(context.Background())
-	g.SetLimit(50)
-
-	go func() {
-		for message := range deployRequestMSGBus {
-			msg := message
-			g.Go(func() error {
-				if err := handleDeployRequests(application, msg); err != nil {
-					log.Println("ERROR: ", err)
-				}
-
-				return nil
-			})
-		}
-	}()
-
-	log.Fatal(application.MakeDeployServerAndRun())
+	orch := &app.Orchestrator{K8s: k8s, Config: cfg}
+	e := app.NewEchoOrchestratorServer(orch)
+	log.Fatal(e.Start(cfg.ListenAddr))
 }
