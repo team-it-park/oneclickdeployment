@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: go-vercel-web
+  namespace: go-vercel-platform
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: vercel.apps.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: go-vercel-web
+                port:
+                  number: 80
+

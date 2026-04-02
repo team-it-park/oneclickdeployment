@@ -45,6 +45,10 @@ func NewApplication() (*Application, error) {
 	db := createDB()
 
 	userStore := store.NewUserStore(db)
+	// Ensure required tables exist on startup (useful for fresh deployments).
+	if err := userStore.CreateTable(); err != nil {
+		return nil, err
+	}
 
 	clientID := os.Getenv("CLIENT_ID")
 	clientSecret := os.Getenv("CLIENT_SECRET")

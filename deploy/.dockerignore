@@ -1,0 +1,7 @@
+.git/
+.github/
+*.md
+vars.env
+Dockerfile
+Makefile
+k8s/

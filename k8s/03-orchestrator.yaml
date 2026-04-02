@@ -1,0 +1,75 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: orchestrator-env
+  namespace: go-vercel-platform
+type: Opaque
+stringData:
+  # REQUIRED
+  ADDR: ":8081"
+  K8S_NAMESPACE: "user-apps"
+  HARBOR_REGISTRY: "git.neev.work"
+  HARBOR_PROJECT: "go-vercel-apps"
+  HARBOR_USERNAME: "admin"
+  HARBOR_PASSWORD: "neev@1234$#@!"
+  INGRESS_BASE_DOMAIN: "apps.example.com"
+  # OPTIONAL
+  INGRESS_CLASS_NAME: "nginx"
+  # INGRESS_TLS_SECRET_NAME: "wildcard-tls"
+  # ORCHESTRATOR_SHARED_SECRET: "shared-secret"
+  # ORCHESTRATOR_SKIP_HARBOR_TLS_VERIFY: "true"
+  # DEFAULT_GIT_REF: "refs/heads/main"
+  # BUILD_JOB_TIMEOUT_SEC: "1800"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go-vercel-orchestrator
+  namespace: go-vercel-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: go-vercel-orchestrator
+  template:
+    metadata:
+      labels:
+        app: go-vercel-orchestrator
+    spec:
+      serviceAccountName: go-vercel-orchestrator
+      imagePullSecrets:
+        - name: harbor-regcred
+      containers:
+        - name: orchestrator
+          image: git.neev.work/go-vercel-apps/go-vercel-orchestrator:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8081
+          envFrom:
+            - secretRef:
+                name: orchestrator-env
+          readinessProbe:
+            tcpSocket:
+              port: 8081
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: go-vercel-orchestrator
+  namespace: go-vercel-platform
+spec:
+  selector:
+    app: go-vercel-orchestrator
+  ports:
+    - name: http
+      port: 8081
+      targetPort: 8081
+

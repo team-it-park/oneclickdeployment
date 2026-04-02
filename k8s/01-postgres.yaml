@@ -1,0 +1,55 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vercel-postgres
+  namespace: go-vercel-platform
+type: Opaque
+stringData:
+  POSTGRES_DB: vercel
+  POSTGRES_USER: vercel
+  POSTGRES_PASSWORD: change-me
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: go-vercel-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: vercel-postgres
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        # NOTE: this is ephemeral. For persistence, add a StorageClass and switch to a PVC.
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: go-vercel-platform
+spec:
+  selector:
+    app: postgres
+  ports:
+    - name: tcp
+      port: 5432
+      targetPort: 5432
+
