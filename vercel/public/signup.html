@@ -3,17 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="/assets/login/style.css">
-    <title>Signup</title>
+    <link rel="stylesheet" href="/assets/app.css">
+    <title>Go Vercel • Sign up</title>
 </head>
 <body>
-    <div class="container">
-        <h2>Signup</h2>
-        <form method="post">
-            <div class="continue"><a href="/continue/github?operation=signup">Continue with Github</a></div>
-            <div class="continue"><a href="/signup/email">Continue with Email</a></div>
-            <div class="signin-link">Already a member? <a href="/">Log In now</a></div>
-        </form>
+    <div class="page">
+        <div class="topbar">
+            <div class="brand">
+                <div class="logo" aria-hidden="true"></div>
+                <div>Go Vercel <span class="subtle">deploy demo</span></div>
+            </div>
+        </div>
+
+        <div class="container">
+            <div class="grid">
+                <div class="card">
+                    <h1>Create your account</h1>
+                    <p>Use email + password for a simple local demo, or connect GitHub for OAuth sign-in.</p>
+                    <div class="divider"></div>
+                    <div class="stack">
+                        <a class="btn primary" href="/signup/email">Sign up with Email + Password</a>
+                        <a class="btn" href="/continue/github?operation=signup">Sign up with GitHub</a>
+                    </div>
+                    <div class="divider"></div>
+                    <div class="small muted">Already have an account? <a href="/">Sign in</a></div>
+                </div>
+
+                <div class="card">
+                    <h2>After sign-in</h2>
+                    <p class="small muted">You’ll paste a Git repo URL, then watch <span class="kbd">building</span> → <span class="kbd">deploying</span> status live. The final message shows your public endpoint.</p>
+                    <div class="divider"></div>
+                    <div class="stack small">
+                        <div class="pill">Repo URL must be public</div>
+                        <div class="pill">Dockerfile required</div>
+                        <div class="pill">Ingress wildcard DNS required</div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </body>
 </html>

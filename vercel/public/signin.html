@@ -3,19 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="/assets/login/style.css">
-    <title>Signin</title>
+    <link rel="stylesheet" href="/assets/app.css">
+    <title>Go Vercel • Sign in</title>
 </head>
 <body>
-    <div class="container">
-        <h2>Log In</h2>
-        <form method="post">
-            <div class="continue"><a href="/continue/github?operation=signin">Continue with Github</a></div>
-            <div class="continue"><a href="/signin/email">Continue with Email</a></div>
-        </form>
+    <div class="page">
+        <div class="topbar">
+            <div class="brand">
+                <div class="logo" aria-hidden="true"></div>
+                <div>Go Vercel <span class="subtle">deploy demo</span></div>
+            </div>
+        </div>
 
-        <div class="signup-link">Not a member? <a href="/signup">Sign Up now</a></div>
+        <div class="container">
+            <div class="grid">
+                <div class="card">
+                    <h1>Sign in</h1>
+                    <p>Deploy any public Git repo with a Dockerfile. Builds run in Kubernetes (Kaniko) and get a public URL via Ingress.</p>
+                    <div class="divider"></div>
+                    <div class="stack">
+                        <a class="btn primary" href="/signin/email">Continue with Email + Password</a>
+                        <a class="btn" href="/continue/github?operation=signin">Continue with GitHub</a>
+                    </div>
+                    <div class="divider"></div>
+                    <div class="small muted">New here? <a href="/signup">Create an account</a></div>
+                </div>
 
+                <div class="card">
+                    <h2>What you get</h2>
+                    <div class="stack small">
+                        <div class="pill">Kubernetes build <span class="kbd">Kaniko Job</span></div>
+                        <div class="pill">Image pushed to <span class="kbd">Harbor</span></div>
+                        <div class="pill">App exposed via <span class="kbd">Ingress</span></div>
+                        <div class="pill">Live status via <span class="kbd">WebSocket</span></div>
+                    </div>
+                    <div class="divider"></div>
+                    <p class="small muted">Tip: your repo must include a <span class="kbd">Dockerfile</span> that listens on port <span class="kbd">8080</span> (configurable).</p>
+                </div>
+            </div>
+        </div>
     </div>
 </body>
 </html>

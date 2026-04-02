@@ -3,27 +3,51 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Home</title>
+	<link rel="stylesheet" href="/assets/app.css">
+	<title>Go Vercel • Deploy</title>
 </head>
 <body>
-	<h1>Home</h1>
-	<a href="/continue/github?operation=connect">Connect Github to your account</a>
-	<br>
-	<a href="/logout">Logout</a>
+	<div class="page">
+		<div class="topbar">
+			<div class="brand">
+				<div class="logo" aria-hidden="true"></div>
+				<div>Go Vercel <span class="subtle">deploy demo</span></div>
+			</div>
+			<div class="actions">
+				<a class="btn" href="/continue/github?operation=connect">Connect GitHub</a>
+				<a class="btn danger" href="/logout">Logout</a>
+			</div>
+		</div>
 
-	<div class="container">
-        <h2>Enter Github Repository link to deploy</h2>
-        <form method="post" action="/deploy">
-            <div class="form-group">
-                <div class="form-group">
-                    <label for="repo-endpoint">Github Repository Link:</label>
-                    <input type="text" id="repo-endpoint" name="repo-endpoint" required>
-                </div>
-            </div>
-            <div class="form-group">
-                <input type="submit" value="submit">
-            </div>
-        </form>
-    </div>
+		<div class="container">
+			<div class="grid">
+				<div class="card">
+					<h1>Deploy a Git repository</h1>
+					<p>Paste a <b>public</b> GitHub repo URL. We’ll build the Dockerfile in Kubernetes and expose it via Ingress.</p>
+					<div class="divider"></div>
+					<form method="post" action="/deploy">
+						<div class="field">
+							<label for="repo-endpoint">GitHub Repository URL</label>
+							<input type="text" id="repo-endpoint" name="repo-endpoint" placeholder="https://github.com/org/repo" required>
+						</div>
+						<div class="row" style="justify-content:flex-end;margin-top:14px;">
+							<button class="btn primary" type="submit">Deploy</button>
+						</div>
+					</form>
+				</div>
+
+				<div class="card">
+					<h2>Repo requirements</h2>
+					<div class="stack small">
+						<div class="pill">Must include <span class="kbd">Dockerfile</span></div>
+						<div class="pill">App listens on <span class="kbd">APP_CONTAINER_PORT</span> (default <span class="kbd">8080</span>)</div>
+						<div class="pill">Builds run as a <span class="kbd">Kaniko Job</span></div>
+					</div>
+					<div class="divider"></div>
+					<p class="small muted">After you click deploy, you’ll see live phases: <span class="kbd">building</span> → <span class="kbd">deploying</span> → endpoint.</p>
+				</div>
+			</div>
+		</div>
+	</div>
 </body>
 </html>

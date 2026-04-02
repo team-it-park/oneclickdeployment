@@ -3,21 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="/assets/login/style.css">
-    <title>Signup</title>
+    <link rel="stylesheet" href="/assets/app.css">
+    <title>Go Vercel • Verify (legacy)</title>
 </head>
 <body>
-    <div class="container">
-        <h2>Check your email for verification code</h2>
-        <form method="post">
-            <div class="form-group">
-                <label for="verification_code">Verfication Code:</label>
-                <input type="text" id="verification_code" name="verification_code" required>
+    <div class="page">
+        <div class="topbar">
+            <div class="brand">
+                <div class="logo" aria-hidden="true"></div>
+                <div>Go Vercel <span class="subtle">deploy demo</span></div>
             </div>
-            <div class="form-group">
-                <input type="submit" value="submit">
+        </div>
+        <div class="container">
+            <div class="card" style="max-width:640px;margin:0 auto;">
+                <h1>Legacy verification page</h1>
+                <p class="small muted">This page belonged to the old “OTP via email” flow. You can ignore it if you’re using email+password auth.</p>
+                <div class="divider"></div>
+                <form method="post">
+                    <div class="field">
+                        <label for="verification_code">Verification Code</label>
+                        <input type="text" id="verification_code" name="verification_code" placeholder="12345">
+                    </div>
+                    <div class="row" style="justify-content:flex-end;margin-top:14px;">
+                        <button class="btn primary" type="submit">Submit</button>
+                    </div>
+                </form>
             </div>
-        </form>
+        </div>
     </div>
 </body>
 </html>

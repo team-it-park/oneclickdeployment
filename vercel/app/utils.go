@@ -7,12 +7,10 @@ import (
 	"time"
 
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/mail"
-	"net/smtp"
 	"os"
 	"strconv"
 
@@ -37,15 +35,10 @@ type Application struct {
 	GithubAPICallbackPath string
 	GithubClients         map[string]*github.Client
 
-	AppEmail    string
-	AppPassword string
-	SMTPHost    string
-	SMTPPort    string
-
-	OrchestratorAddr           string
-	OrchestratorSharedSecret   string
-	OrchestratorGitRef         string
-	OrchestratorHTTPTimeout    time.Duration
+	OrchestratorAddr         string
+	OrchestratorSharedSecret string
+	OrchestratorGitRef       string
+	OrchestratorHTTPTimeout  time.Duration
 }
 
 func NewApplication() (*Application, error) {
@@ -56,10 +49,6 @@ func NewApplication() (*Application, error) {
 	clientID := os.Getenv("CLIENT_ID")
 	clientSecret := os.Getenv("CLIENT_SECRET")
 	callbackPath := os.Getenv("GITHUB_OAUTH_CALLBACK_PATH")
-	appPassword := os.Getenv("APP_PASSWORD")
-	appEmail := os.Getenv("APP_EMAIL")
-	smtpHost := os.Getenv("SMTP_HOST")
-	smtpPort := os.Getenv("SMTP_PORT")
 
 	orchTimeout := 45 * time.Minute
 	if v := os.Getenv("ORCHESTRATOR_HTTP_TIMEOUT_MINUTES"); v != "" {
@@ -75,10 +64,6 @@ func NewApplication() (*Application, error) {
 		GithubClientSecret:       clientSecret,
 		GithubAPICallbackPath:    callbackPath,
 		GithubClients:            make(map[string]*github.Client),
-		AppEmail:                 appEmail,
-		AppPassword:              appPassword,
-		SMTPHost:                 smtpHost,
-		SMTPPort:                 smtpPort,
 		OrchestratorAddr:         os.Getenv("ORCHESTRATOR_ADDR"),
 		OrchestratorSharedSecret: os.Getenv("ORCHESTRATOR_SHARED_SECRET"),
 		OrchestratorGitRef:       os.Getenv("ORCHESTRATOR_DEFAULT_GIT_REF"),
@@ -198,14 +183,6 @@ func (app *Application) createIfNotExists(username, email string, githubAccess b
 	})
 }
 
-func (app *Application) sendVerificationCode(username, to, code string) error {
-	auth := smtp.PlainAuth("", app.AppEmail, app.AppPassword, "smtp.gmail.com")
-	headers := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";"
-	message := "Subject: Verification" + "\n" + headers + "\n\n" + fmt.Sprintf("Hello <b>%s</b>, your verification code is: <b>%s<b>", username, code)
-
-	return smtp.SendMail(app.SMTPHost+":"+app.SMTPPort, auth, app.AppEmail, []string{to}, []byte(message))
-}
-
 func validMailAddress(address string) bool {
 	_, err := mail.ParseAddress(address)
 	return err == nil
@@ -236,19 +213,4 @@ func generateID(length int) string {
 	return string(id)
 }
 
-func (app *Application) setupEmailVerification(c echo.Context, username, email string) error {
-	code, err := generateOTP(5)
-	if err != nil {
-		return err
-	}
-
-	if err := setSession(c, map[string]any{"verification_code": code}); err != nil {
-		return err
-	}
-
-	if err := app.sendVerificationCode(username, email, code); err != nil {
-		return err
-	}
-
-	return nil
-}
+// NOTE: OTP-by-email flow was removed in favor of simple email+password auth.

@@ -3,21 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="/assets/login/style.css">
-    <title>Login</title>
+    <link rel="stylesheet" href="/assets/app.css">
+    <title>Go Vercel • Email sign in</title>
 </head>
 <body>
-    <div class="container">
-        <h2>Login With Email</h2>
-        <form method="post" action="/continue/email?operation=signin">
-            <div class="form-group">
-                <label for="email">Email:</label>
-                <input type="email" id="email" name="email" required>
+    <div class="page">
+        <div class="topbar">
+            <div class="brand">
+                <div class="logo" aria-hidden="true"></div>
+                <div>Go Vercel <span class="subtle">deploy demo</span></div>
             </div>
-            <div class="form-group">
-                <input type="submit" value="submit">
+            <div class="actions">
+                <a class="btn" href="/">Back</a>
             </div>
-        </form>
+        </div>
+
+        <div class="container">
+            <div class="card" style="max-width:520px;margin:0 auto;">
+                <h1>Welcome back</h1>
+                <p class="small muted">Sign in to deploy a repo. You’ll see live build status over WebSocket.</p>
+                <div class="divider"></div>
+                <form method="post" action="/signin/password">
+                    <div class="field">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" name="email" placeholder="you@company.com" required>
+                    </div>
+                    <div class="field">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" placeholder="••••••••" required>
+                    </div>
+                    <div class="row" style="justify-content:space-between;margin-top:16px;">
+                        <a class="btn" href="/signup/email">Create account</a>
+                        <button class="btn primary" type="submit">Sign in</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 </body>
 </html>
