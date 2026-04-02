@@ -344,8 +344,14 @@ func (o *Orchestrator) BuildDeploy(ctx context.Context, req BuildDeployRequest, 
 	if err := o.applyService(ctx, req.ProjectID); err != nil {
 		return "", fmt.Errorf("service: %w", err)
 	}
-	if err := o.applyIngress(ctx, req.ProjectID); err != nil {
-		return "", fmt.Errorf("ingress: %w", err)
+	if o.Config.GatewayName != "" {
+		if err := o.applyHTTPRoute(ctx, req.ProjectID); err != nil {
+			return "", fmt.Errorf("httproute: %w", err)
+		}
+	} else {
+		if err := o.applyIngress(ctx, req.ProjectID); err != nil {
+			return "", fmt.Errorf("ingress: %w", err)
+		}
 	}
 
 	return o.PublicURL(req.ProjectID), nil

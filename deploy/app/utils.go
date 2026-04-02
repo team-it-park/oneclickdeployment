@@ -24,6 +24,9 @@ type Config struct {
 	IngressBaseDomain    string
 	IngressClassName     string
 	IngressTLSSecretName string
+	// Gateway API (optional): if set, create HTTPRoute instead of Ingress.
+	GatewayNamespace string
+	GatewayName      string
 	KanikoImage          string
 	AppContainerPort     int32
 	BuildJobTimeoutSec   int
@@ -65,6 +68,8 @@ func LoadConfig() Config {
 		IngressBaseDomain:    os.Getenv("INGRESS_BASE_DOMAIN"),
 		IngressClassName:     os.Getenv("INGRESS_CLASS_NAME"),
 		IngressTLSSecretName: os.Getenv("INGRESS_TLS_SECRET_NAME"),
+		GatewayNamespace:     getenvDefault("GATEWAY_NAMESPACE", "istio-system"),
+		GatewayName:          os.Getenv("GATEWAY_NAME"),
 		KanikoImage:          kaniko,
 		AppContainerPort:     port,
 		BuildJobTimeoutSec:   timeout,
@@ -82,21 +87,24 @@ func getenvDefault(key, def string) string {
 
 // K8sClient returns a kubernetes clientset (in-cluster or kubeconfig).
 func K8sClient() (*kubernetes.Clientset, error) {
-	kc := os.Getenv("KUBECONFIG")
-	var cfg *rest.Config
-	var err error
-	if kc != "" {
-		cfg, err = clientcmd.BuildConfigFromFlags("", kc)
-	} else {
-		cfg, err = rest.InClusterConfig()
-		if err != nil {
-			cfg, err = clientcmd.BuildConfigFromFlags("", clientcmd.RecommendedHomeFile)
-		}
-	}
+	cfg, err := K8sRestConfig()
 	if err != nil {
 		return nil, err
 	}
 	return kubernetes.NewForConfig(cfg)
+}
+
+// K8sRestConfig builds the Kubernetes REST config (in-cluster or kubeconfig).
+func K8sRestConfig() (*rest.Config, error) {
+	kc := os.Getenv("KUBECONFIG")
+	if kc != "" {
+		return clientcmd.BuildConfigFromFlags("", kc)
+	}
+	cfg, err := rest.InClusterConfig()
+	if err == nil {
+		return cfg, nil
+	}
+	return clientcmd.BuildConfigFromFlags("", clientcmd.RecommendedHomeFile)
 }
 
 // DockerConfigJSON builds a Docker config.json for Harbor auth.
