@@ -36,11 +36,11 @@ window.addEventListener("DOMContentLoaded", (_) => {
 		if (!msg) return;
 
 		if (msg === "building") {
-			addLine("warn", "Building image", "Kaniko is building and pushing to Harbor");
+			addLine("warn", "Building", "Packaging your app for deployment");
 			return;
 		}
 		if (msg === "deploying") {
-			addLine("warn", "Deploying to Kubernetes", "Applying Deployment, Service, and Ingress");
+			addLine("warn", "Deploying", "Publishing your app and preparing a live URL");
 			return;
 		}
 		if (msg === "deployed") {

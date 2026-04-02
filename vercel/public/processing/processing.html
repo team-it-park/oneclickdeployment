@@ -4,14 +4,14 @@
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<link rel="stylesheet" href="/assets/app.css">
-	<title>Go Vercel • Deploying</title>
+	<title>LaunchPad • Deploying</title>
 </head>
 <body>
 	<div class="page">
 		<div class="topbar">
 			<div class="brand">
 				<div class="logo" aria-hidden="true"></div>
-				<div>Go Vercel <span class="subtle">deploy demo</span></div>
+				<div>LaunchPad <span class="subtle">one‑click deployments</span></div>
 			</div>
 			<div class="actions">
 				<a class="btn" href="/continue/github?operation=connect">Connect GitHub</a>
@@ -23,19 +23,19 @@
 			<div class="grid">
 				<div class="card">
 					<h1>Deploying…</h1>
-					<p class="small muted">Keep this tab open. We stream live progress from the backend via WebSocket.</p>
+					<p class="small muted">Keep this tab open. You’ll see live progress updates here.</p>
 					<div class="divider"></div>
 					<div id="status" class="status" aria-live="polite"></div>
 				</div>
 				<div class="card">
 					<h2>Phases</h2>
 					<div class="stack small">
-						<div class="pill"><span class="kbd">building</span> container image</div>
-						<div class="pill"><span class="kbd">deploying</span> to Kubernetes</div>
-						<div class="pill"><span class="kbd">deployed</span> endpoint ready</div>
+						<div class="pill"><span class="kbd">building</span> your app</div>
+						<div class="pill"><span class="kbd">deploying</span> it live</div>
+						<div class="pill"><span class="kbd">deployed</span> URL ready</div>
 					</div>
 					<div class="divider"></div>
-					<p class="small muted">If you’re running frontend-only, you’ll see an error saying the orchestrator is unreachable. That’s expected until `deploy/` is running.</p>
+					<p class="small muted">If you’re running UI-only mode, deployments will show an error until the deployment service is running.</p>
 				</div>
 			</div>
 		</div>

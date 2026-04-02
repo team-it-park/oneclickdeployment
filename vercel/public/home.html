@@ -4,14 +4,14 @@
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<link rel="stylesheet" href="/assets/app.css">
-	<title>Go Vercel • Deploy</title>
+	<title>LaunchPad • Deploy</title>
 </head>
 <body>
 	<div class="page">
 		<div class="topbar">
 			<div class="brand">
 				<div class="logo" aria-hidden="true"></div>
-				<div>Go Vercel <span class="subtle">deploy demo</span></div>
+				<div>LaunchPad <span class="subtle">one‑click deployments</span></div>
 			</div>
 			<div class="actions">
 				<a class="btn" href="/continue/github?operation=connect">Connect GitHub</a>
@@ -23,7 +23,7 @@
 			<div class="grid">
 				<div class="card">
 					<h1>Deploy a Git repository</h1>
-					<p>Paste a <b>public</b> GitHub repo URL. We’ll build the Dockerfile in Kubernetes and expose it via Ingress.</p>
+					<p>Paste a <b>public</b> GitHub repo URL. We’ll build it and publish a live URL.</p>
 					<div class="divider"></div>
 					<form method="post" action="/deploy">
 						<div class="field">
@@ -40,11 +40,11 @@
 					<h2>Repo requirements</h2>
 					<div class="stack small">
 						<div class="pill">Must include <span class="kbd">Dockerfile</span></div>
-						<div class="pill">App listens on <span class="kbd">APP_CONTAINER_PORT</span> (default <span class="kbd">8080</span>)</div>
-						<div class="pill">Builds run as a <span class="kbd">Kaniko Job</span></div>
+						<div class="pill">App must expose an HTTP server</div>
+						<div class="pill">Build happens remotely</div>
 					</div>
 					<div class="divider"></div>
-					<p class="small muted">After you click deploy, you’ll see live phases: <span class="kbd">building</span> → <span class="kbd">deploying</span> → endpoint.</p>
+					<p class="small muted">After you click deploy, you’ll see live phases: <span class="kbd">building</span> → <span class="kbd">deploying</span> → live URL.</p>
 				</div>
 			</div>
 		</div>
