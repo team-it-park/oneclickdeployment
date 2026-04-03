@@ -5,13 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/NikhilSharmaWe/go-vercel-app/vercel/models"
-	"github.com/google/go-github/github"
 	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/oauth2"
 
 	"gorm.io/gorm"
 
@@ -37,9 +34,7 @@ func (app *Application) Router() *echo.Echo {
 	// e.GET("/verify", ServeHTML("./public/verification_code.html"), app.IfAlreadyLogined)
 
 	e.GET("/home", ServeHTML("./public/home.html"), app.IfNotLogined)
-
-	e.GET(app.GithubAPICallbackPath, app.HandleGithubCallback)
-	e.GET("/continue/github", app.HandleGithubAuth)
+	// GitHub OAuth routes removed for now
 	e.GET("/logout", app.HandleLogout, app.IfNotLogined)
 	e.GET("/start-processing", app.HandleProcessing, app.IfNotLogined)
 
@@ -125,137 +120,6 @@ func (app *Application) HandleSigninWithPassword(c echo.Context) error {
 		c.Logger().Error(err)
 		return err
 	}
-	return c.Redirect(http.StatusSeeOther, "/home")
-}
-
-func (app *Application) HandleGithubAuth(c echo.Context) error {
-	operation := c.QueryParam("operation")
-	if operation != "signin" && operation != "signup" && operation != "connect" {
-		return echo.NewHTTPError(http.StatusBadRequest, models.ErrInvalidOperation)
-	}
-
-	if operation != "connect" {
-		if app.alreadyLoggedIn(c) {
-			return c.Redirect(http.StatusFound, "/home")
-		}
-	}
-
-	c.Set("operation", operation)
-
-	callbackURL := fmt.Sprintf("http://localhost%s%s?operation=%s", os.Getenv("ADDR"), app.GithubAPICallbackPath, operation)
-	redirectURL := fmt.Sprintf("https://github.com/login/oauth/authorize?client_id=%s&scope=repo,user&redirect_uri=%s&prompt=consent", app.GithubClientID, callbackURL)
-
-	return c.Redirect(http.StatusSeeOther, redirectURL)
-}
-
-func (app *Application) HandleGithubCallback(c echo.Context) error {
-	operation := c.QueryParam("operation")
-	if operation != "signin" && operation != "signup" && operation != "connect" {
-		return echo.NewHTTPError(http.StatusBadRequest, models.ErrInvalidOperation)
-	}
-
-	if operation != "connect" {
-		if app.alreadyLoggedIn(c) {
-			return c.Redirect(http.StatusFound, "/home")
-		}
-	}
-
-	code := c.QueryParam("code")
-	tok, err := app.getGithubAccessToken(code)
-	if err != nil {
-		c.Logger().Error(err)
-		return err
-	}
-
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{
-			AccessToken: tok,
-		},
-	)
-
-	tc := oauth2.NewClient(c.Request().Context(), ts)
-
-	gc := github.NewClient(tc)
-
-	ctx, cancelFunc := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancelFunc()
-
-	emails, _, err := gc.Users.ListEmails(ctx, &github.ListOptions{})
-	if err != nil {
-		c.Logger().Error(err)
-		return err
-	}
-
-	var pEmail string
-
-	for _, email := range emails {
-
-		if email.GetPrimary() {
-			pEmail = email.GetEmail()
-			break
-		}
-	}
-
-	user, _, err := gc.Users.Get(context.Background(), "")
-	if err != nil {
-		c.Logger().Error(err)
-		return err
-	}
-
-	username := *user.Login
-
-	switch operation {
-	case "signup":
-		err := app.createIfNotExists(username, pEmail, true)
-		if err != nil {
-			if err == models.ErrUserAlreadyExists {
-				return echo.NewHTTPError(http.StatusBadRequest, err)
-			}
-
-			c.Logger().Error(err)
-			return err
-		}
-
-	case "signin":
-		user, err := app.UserStore.GetOne("email = ?", pEmail)
-		if err != nil {
-			if err == gorm.ErrRecordNotFound {
-				return echo.NewHTTPError(http.StatusBadRequest, models.ErrUserNotExists)
-			}
-
-			c.Logger().Error(err)
-			return err
-		}
-
-		if !user.GithubAccess {
-			return echo.NewHTTPError(http.StatusUnauthorized, models.ErrUserDoNotHaveGithubAccess)
-		}
-
-	case "connect":
-		exists, err := app.UserStore.IsExists("email = ?", pEmail)
-		if err != nil {
-			c.Logger().Error(err)
-			return err
-		}
-
-		if !exists {
-			return echo.NewHTTPError(http.StatusBadRequest, models.ErrUserNotExists)
-		}
-
-		if err := app.UserStore.Update(map[string]any{"github_access": true}, "email = ?", pEmail); err != nil {
-			c.Logger().Error(err)
-			return err
-		}
-
-	default:
-		return echo.NewHTTPError(http.StatusBadRequest, models.ErrInvalidOperation)
-	}
-
-	if err := setSession(c, map[string]any{"email": pEmail, "authenticated": true}); err != nil {
-		c.Logger().Error(err)
-		return err
-	}
-
 	return c.Redirect(http.StatusSeeOther, "/home")
 }
 

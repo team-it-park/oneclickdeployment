@@ -29,7 +29,7 @@ window.addEventListener("DOMContentLoaded", (_) => {
 	websocket.addEventListener("open", () => {
 		addLine("ok", "Connected", "Streaming deployment status");
 	});
-
+  
 	websocket.addEventListener("message", function (e) {
 		const data = (e && e.data) ? String(e.data) : "";
 		const msg = data.trim();
