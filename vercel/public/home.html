@@ -24,6 +24,7 @@
 				<div class="card">
 					<h1>Deploy a Git repository</h1>
 					<p>Paste a <b>public</b> GitHub repo URL. We’ll build it and publish a live URL.</p>
+					<p class="small muted">Requirement: the repository must be <b>public</b> and must include a <span class="kbd">Dockerfile</span>.</p>
 					<div class="divider"></div>
 					<form method="post" action="/deploy">
 						<div class="field">
@@ -39,6 +40,7 @@
 				<div class="card">
 					<h2>Repo requirements</h2>
 					<div class="stack small">
+						<div class="pill">Repository must be <span class="kbd">public</span></div>
 						<div class="pill">Must include <span class="kbd">Dockerfile</span></div>
 						<div class="pill">App must expose an HTTP server</div>
 						<div class="pill">Build happens remotely</div>
