@@ -11,12 +11,15 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
-func httpRouteName(projectID string) string {
+func (o *Orchestrator) httpRouteName(projectID string) string {
+	if o.Config.PublicHostSubdomainPrefix != "" {
+		return fmt.Sprintf("%s-%s", o.Config.PublicHostSubdomainPrefix, projectID)
+	}
 	return "route-" + projectID
 }
 
 // applyHTTPRoute creates/updates a Gateway API HTTPRoute that attaches to the configured Gateway
-// and routes Hostname {projectID}.{INGRESS_BASE_DOMAIN} to svc-{projectID}:80 in the workload namespace.
+// and routes publicHostname(projectID) to svc-{projectID} on K8sServicePort in the workload namespace.
 func (o *Orchestrator) applyHTTPRoute(ctx context.Context, projectID string) error {
 	if o.Config.IngressBaseDomain == "" {
 		return fmt.Errorf("INGRESS_BASE_DOMAIN is required")
@@ -26,8 +29,8 @@ func (o *Orchestrator) applyHTTPRoute(ctx context.Context, projectID string) err
 	}
 
 	ns := o.Config.K8sNamespace
-	name := httpRouteName(projectID)
-	host := fmt.Sprintf("%s.%s", projectID, o.Config.IngressBaseDomain)
+	name := o.httpRouteName(projectID)
+	host := o.publicHostname(projectID)
 
 	gvr := schema.GroupVersionResource{
 		Group:    "gateway.networking.k8s.io",
@@ -48,17 +51,30 @@ func (o *Orchestrator) applyHTTPRoute(ctx context.Context, projectID string) err
 			"spec": map[string]interface{}{
 				"parentRefs": []interface{}{
 					map[string]interface{}{
-						"name":      o.Config.GatewayName,
-						"namespace": o.Config.GatewayNamespace,
+						"name":        o.Config.GatewayName,
+						"namespace":   o.Config.GatewayNamespace,
+						"sectionName": o.Config.GatewaySectionName,
 					},
 				},
 				"hostnames": []interface{}{host},
 				"rules": []interface{}{
 					map[string]interface{}{
+						"matches": []interface{}{
+							map[string]interface{}{
+								"path": map[string]interface{}{
+									"type":  "PathPrefix",
+									"value": "/",
+								},
+							},
+						},
 						"backendRefs": []interface{}{
 							map[string]interface{}{
-								"name": serviceName(projectID),
-								"port": 80,
+								"group":     "",
+								"kind":      "Service",
+								"name":      serviceName(projectID),
+								"namespace": ns,
+								"port":      int64(o.Config.K8sServicePort),
+								"weight":    1,
 							},
 						},
 					},

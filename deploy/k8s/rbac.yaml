@@ -3,7 +3,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: go-vercel-orchestrator
-  namespace: default
+  namespace: user-apps
 ---
 # Role scoped to user-apps: Jobs, Secrets, Deployments, Services, Ingresses, Pods (for Kaniko status).
 apiVersion: rbac.authorization.k8s.io/v1
@@ -24,6 +24,9 @@ rules:
   - apiGroups: ["networking.k8s.io"]
     resources: ["ingresses"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["httproutes"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -37,4 +40,4 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: go-vercel-orchestrator
-    namespace: default
+    namespace: user-apps

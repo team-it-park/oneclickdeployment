@@ -1,0 +1,55 @@
+# Requires: namespace, RBAC, ConfigMap orchestrator-config, Secret orchestrator-secrets
+# Build & push image first (see deploy/k8s/README.md).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go-vercel-orchestrator
+  namespace: user-apps
+  labels:
+    app: go-vercel-orchestrator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: go-vercel-orchestrator
+  template:
+    metadata:
+      labels:
+        app: go-vercel-orchestrator
+    spec:
+      serviceAccountName: go-vercel-orchestrator
+      containers:
+        - name: orchestrator
+          image: git.neev.work/hackthon/go-vercel-orchestrator:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8081
+          envFrom:
+            - configMapRef:
+                name: orchestrator-config
+            - secretRef:
+                name: orchestrator-secrets
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: go-vercel-orchestrator
+  namespace: user-apps
+spec:
+  selector:
+    app: go-vercel-orchestrator
+  ports:
+    - name: http
+      port: 8081
+      targetPort: http

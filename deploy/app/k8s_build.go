@@ -201,7 +201,7 @@ func (o *Orchestrator) applyDeployment(ctx context.Context, projectID, imageRef 
 	return err
 }
 
-func buildService(projectID string, port int32) *corev1.Service {
+func buildService(projectID string, servicePort, targetPort int32) *corev1.Service {
 	name := serviceName(projectID)
 	labels := workloadLabels(projectID)
 	return &corev1.Service{
@@ -209,8 +209,8 @@ func buildService(projectID string, port int32) *corev1.Service {
 		Spec: corev1.ServiceSpec{
 			Selector: labels,
 			Ports: []corev1.ServicePort{{
-				Port:       80,
-				TargetPort: intstr.FromInt32(port),
+				Port:       servicePort,
+				TargetPort: intstr.FromInt32(targetPort),
 			}},
 		},
 	}
@@ -219,7 +219,7 @@ func buildService(projectID string, port int32) *corev1.Service {
 func (o *Orchestrator) applyService(ctx context.Context, projectID string) error {
 	ns := o.Config.K8sNamespace
 	name := serviceName(projectID)
-	desired := buildService(projectID, o.Config.AppContainerPort)
+	desired := buildService(projectID, o.Config.K8sServicePort, o.Config.AppContainerPort)
 
 	cur, err := o.K8s.CoreV1().Services(ns).Get(ctx, name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
@@ -237,13 +237,21 @@ func (o *Orchestrator) applyService(ctx context.Context, projectID string) error
 
 func pathTypePtr(t netv1.PathType) *netv1.PathType { return &t }
 
+// publicHostname is the user-facing DNS name (Ingress host / HTTPRoute hostname).
+func (o *Orchestrator) publicHostname(projectID string) string {
+	if o.Config.PublicHostSubdomainPrefix != "" {
+		return fmt.Sprintf("%s-%s.%s", o.Config.PublicHostSubdomainPrefix, projectID, o.Config.IngressBaseDomain)
+	}
+	return fmt.Sprintf("%s.%s", projectID, o.Config.IngressBaseDomain)
+}
+
 func (o *Orchestrator) applyIngress(ctx context.Context, projectID string) error {
 	if o.Config.IngressBaseDomain == "" {
 		return fmt.Errorf("INGRESS_BASE_DOMAIN is required")
 	}
 	ns := o.Config.K8sNamespace
 	name := ingressName(projectID)
-	host := fmt.Sprintf("%s.%s", projectID, o.Config.IngressBaseDomain)
+	host := o.publicHostname(projectID)
 	labels := workloadLabels(projectID)
 
 	paths := []netv1.HTTPIngressPath{{
@@ -252,7 +260,7 @@ func (o *Orchestrator) applyIngress(ctx context.Context, projectID string) error
 		Backend: netv1.IngressBackend{
 			Service: &netv1.IngressServiceBackend{
 				Name: serviceName(projectID),
-				Port: netv1.ServiceBackendPort{Number: 80},
+				Port: netv1.ServiceBackendPort{Number: o.Config.K8sServicePort},
 			},
 		},
 	}}
@@ -295,10 +303,13 @@ func (o *Orchestrator) applyIngress(ctx context.Context, projectID string) error
 // PublicURL returns the URL shown to the user for this project.
 func (o *Orchestrator) PublicURL(projectID string) string {
 	scheme := "http"
-	if o.Config.IngressTLSSecretName != "" {
+	if o.Config.PublicURLUseHTTPS {
+		scheme = "https"
+	} else if o.Config.GatewayName == "" && o.Config.IngressTLSSecretName != "" {
 		scheme = "https"
 	}
-	return fmt.Sprintf("%s://%s.%s", scheme, projectID, o.Config.IngressBaseDomain)
+	host := o.publicHostname(projectID)
+	return fmt.Sprintf("%s://%s", scheme, host)
 }
 
 // BuildDeploy runs the full pipeline. writePhase is called with "building" and "deploying" before each major step.

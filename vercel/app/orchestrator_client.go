@@ -28,7 +28,7 @@ func (app *Application) CallOrchestratorBuildDeploy(ctx context.Context, repoURL
 	if base == "" {
 		return "", fmt.Errorf("ORCHESTRATOR_ADDR is not set")
 	}
-	u := base + "/build-deploy"
+	u := base + app.OrchestratorDeployPath
 
 	body := map[string]string{
 		"githubRepoEndpoint": repoURL,

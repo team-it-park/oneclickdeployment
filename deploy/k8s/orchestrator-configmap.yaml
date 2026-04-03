@@ -1,0 +1,25 @@
+# Non-secret orchestrator settings. Tune for your cluster, then:
+#   kubectl apply -f deploy/k8s/orchestrator-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orchestrator-config
+  namespace: user-apps
+data:
+  ADDR: ":8081"
+  K8S_NAMESPACE: "user-apps"
+  HARBOR_REGISTRY: "git.neev.work"
+  HARBOR_PROJECT: "hackthon"
+  HARBOR_USERNAME: "admin"
+  INGRESS_BASE_DOMAIN: "launchpad.neev.work"
+  INGRESS_CLASS_NAME: "nginx"
+  GATEWAY_NAMESPACE: "istio-system"
+  GATEWAY_NAME: "istio-public-gateway"
+  GATEWAY_SECTION_NAME: "http"
+  PUBLIC_HOST_SUBDOMAIN_PREFIX: "svc"
+  KANIKO_IMAGE: "gcr.io/kaniko-project/executor:v1.23.2"
+  APP_CONTAINER_PORT: "8080"
+  K8S_SERVICE_PORT: "80"
+  BUILD_JOB_TIMEOUT_SEC: "1800"
+  DEFAULT_GIT_REF: "refs/heads/main"
+  ORCHESTRATOR_SKIP_HARBOR_TLS_VERIFY: "false"

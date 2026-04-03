@@ -5,7 +5,7 @@ A small **Vercel-style** deployment demo in Go: users sign in, submit a **public
 ## Architecture
 
 1. **Vercel** ([`vercel/`](vercel/)) — Echo web UI, sessions, GitHub OAuth and email auth. On deploy, the browser opens a WebSocket; the server calls the orchestrator over **HTTP** (no RabbitMQ).
-2. **Orchestrator** ([`deploy/`](deploy/)) — Echo HTTP API `POST /build-deploy`. Uses **client-go** to create a **Kaniko Job**, wait for success, then apply **Deployment**, **Service**, and **Ingress**. Harbor credentials are stored as a **dockerconfigjson** Secret in the workload namespace.
+2. **Orchestrator** ([`deploy/`](deploy/)) — Echo HTTP API **`POST /deploy-app`** (alias `POST /build-deploy`). Uses **client-go** to create a **Kaniko Job**, wait for success, then apply **Deployment**, **Service**, and **Ingress** or **HTTPRoute**. User repos must include a **Dockerfile** (SPA, API, or static site). Harbor credentials are stored as a **dockerconfigjson** Secret in the workload namespace.
 3. **Traffic** — End users hit `{projectID}.{INGRESS_BASE_DOMAIN}` through your ingress controller, not a separate static-file service.
 
 ```mermaid
@@ -20,7 +20,7 @@ flowchart LR
 
 ## Repository contract (v1)
 
-The Git repo must include a **Dockerfile** that runs an HTTP server on **`APP_CONTAINER_PORT`** (default **8080**). See [`deploy/k8s/Dockerfile.sample`](deploy/k8s/Dockerfile.sample).
+The Git repo must include a **Dockerfile** that runs an HTTP server on **`APP_CONTAINER_PORT`** (default **8080**). That can be a **frontend** (static files + nginx, or Node `serve`), an API, or anything containerized. See [`deploy/k8s/Dockerfile.sample`](deploy/k8s/Dockerfile.sample) and [`deploy/samples/user-static-frontend/`](deploy/samples/user-static-frontend/).
 
 ## Environment variables
 
@@ -36,6 +36,7 @@ Templates you can copy: [`deploy/vars.env.example`](deploy/vars.env.example) and
 | `CLIENT_ID` / `CLIENT_SECRET` / `GITHUB_OAUTH_CALLBACK_PATH` | GitHub OAuth |
 | `APP_EMAIL` / `APP_PASSWORD` / `SMTP_HOST` / `SMTP_PORT` | Email verification |
 | **`ORCHESTRATOR_ADDR`** | Base URL of orchestrator (e.g. `http://localhost:8081`) |
+| **`ORCHESTRATOR_DEPLOY_PATH`** | Optional path (default **`/deploy-app`**; legacy **`/build-deploy`**) |
 | **`ORCHESTRATOR_SHARED_SECRET`** | Optional; must match orchestrator if set |
 | **`ORCHESTRATOR_DEFAULT_GIT_REF`** | Optional git ref (default on orchestrator side: `refs/heads/main`) |
 | **`ORCHESTRATOR_HTTP_TIMEOUT_MINUTES`** | Optional HTTP client timeout (default 45) |
@@ -44,7 +45,7 @@ Templates you can copy: [`deploy/vars.env.example`](deploy/vars.env.example) and
 
 | Variable | Purpose |
 |----------|---------|
-| `ADDR` | Listen address (e.g. `:8081`) |
+| `ADDR` | Listen address (e.g. `:8081`) — serves **`POST /deploy-app`** (and **`POST /build-deploy`**) |
 | **`K8S_NAMESPACE`** | Namespace for Jobs and workloads (must exist; apply [`deploy/k8s/namespace.yaml`](deploy/k8s/namespace.yaml)) |
 | **`HARBOR_REGISTRY`** | Registry host (no scheme), e.g. `harbor.example.com` |
 | **`HARBOR_PROJECT`** | Harbor project name (default `go-vercel-apps`) |

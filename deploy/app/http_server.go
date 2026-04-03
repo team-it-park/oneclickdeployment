@@ -14,7 +14,16 @@ import (
 func NewEchoOrchestratorServer(orch *Orchestrator) *echo.Echo {
 	e := echo.New()
 	e.Pre(middleware.RemoveTrailingSlash())
-	e.POST("/build-deploy", func(c echo.Context) error {
+	h := newDeployAppHandler(orch)
+	// Primary API: deploy a user's app (any Dockerfile: SPA, API, static site) into K8s user-apps + public route.
+	e.POST("/deploy-app", h)
+	// Legacy alias — same behavior.
+	e.POST("/build-deploy", h)
+	return e
+}
+
+func newDeployAppHandler(orch *Orchestrator) echo.HandlerFunc {
+	return func(c echo.Context) error {
 		if orch.Config.SharedSecret != "" {
 			if c.Request().Header.Get("X-Orchestrator-Secret") != orch.Config.SharedSecret {
 				return echo.NewHTTPError(http.StatusUnauthorized, "invalid or missing X-Orchestrator-Secret")
@@ -63,6 +72,5 @@ func NewEchoOrchestratorServer(orch *Orchestrator) *echo.Echo {
 		pass := true
 		_ = writeLine(BuildDeployStreamLine{Success: &pass, PublicURL: publicURL})
 		return nil
-	})
-	return e
+	}
 }

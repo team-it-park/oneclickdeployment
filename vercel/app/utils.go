@@ -30,6 +30,8 @@ type Application struct {
 	OrchestratorSharedSecret string
 	OrchestratorGitRef       string
 	OrchestratorHTTPTimeout  time.Duration
+	// OrchestratorDeployPath is appended to ORCHESTRATOR_ADDR (default "/deploy-app").
+	OrchestratorDeployPath string
 }
 
 func NewApplication() (*Application, error) {
@@ -48,6 +50,14 @@ func NewApplication() (*Application, error) {
 		}
 	}
 
+	deployPath := os.Getenv("ORCHESTRATOR_DEPLOY_PATH")
+	if deployPath == "" {
+		deployPath = "/deploy-app"
+	}
+	if deployPath[0] != '/' {
+		deployPath = "/" + deployPath
+	}
+
 	return &Application{
 		CookieStore:              sessions.NewCookieStore([]byte(os.Getenv("SECRET"))),
 		UserStore:                userStore,
@@ -55,6 +65,7 @@ func NewApplication() (*Application, error) {
 		OrchestratorSharedSecret: os.Getenv("ORCHESTRATOR_SHARED_SECRET"),
 		OrchestratorGitRef:       os.Getenv("ORCHESTRATOR_DEFAULT_GIT_REF"),
 		OrchestratorHTTPTimeout:  orchTimeout,
+		OrchestratorDeployPath:   deployPath,
 	}, nil
 }
 

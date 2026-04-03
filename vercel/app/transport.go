@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/NikhilSharmaWe/go-vercel-app/vercel/models"
@@ -20,6 +21,9 @@ import (
 func (app *Application) Router() *echo.Echo {
 
 	e := echo.New()
+	if os.Getenv("TRUST_PROXY") == "true" {
+		e.IPExtractor = echo.ExtractIPFromXFFHeader()
+	}
 	e.Pre(middleware.RemoveTrailingSlash())
 
 	e.Static("/assets", "./public")
@@ -41,7 +45,6 @@ func (app *Application) Router() *echo.Echo {
 	// Email + password auth
 	e.POST("/signup/password", app.HandleSignupWithPassword, app.IfAlreadyLogined)
 	e.POST("/signin/password", app.HandleSigninWithPassword, app.IfAlreadyLogined)
-	// e.POST("/deploy", app.HandleDeploy, app.IfNotLogined)
 	e.POST("/deploy", app.HandleDeploy, app.IfNotLogined)
 
 	return e

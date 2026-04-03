@@ -27,8 +27,18 @@ type Config struct {
 	// Gateway API (optional): if set, create HTTPRoute instead of Ingress.
 	GatewayNamespace string
 	GatewayName      string
+	// Gateway listener section (Gateway API parentRefs.sectionName), e.g. "http" or "https".
+	GatewaySectionName string
+	// PUBLIC_HOST_SUBDOMAIN_PREFIX: if non-empty, public host is "{prefix}-{projectID}.{INGRESS_BASE_DOMAIN}"
+	// and HTTPRoute metadata name is "{prefix}-{projectID}" (e.g. prefix "svc" -> svc-abc12.launchpad.neev.work).
+	PublicHostSubdomainPrefix string
+	// PUBLIC_URL_USE_HTTPS: if true, PublicURL uses https (e.g. after fixing Gateway TLS).
+	PublicURLUseHTTPS bool
 	KanikoImage          string
 	AppContainerPort     int32
+	// K8sServicePort is the Service spec.ports[].port (ClusterIP port). HTTPRoute/Ingress target this; must match buildService.
+	// Defaults to 80; set when you want the Service to expose a different port than 80 while the container still uses AppContainerPort.
+	K8sServicePort int32
 	BuildJobTimeoutSec   int
 	SkipHarborTLSVerify  bool
 	DefaultGitRef        string
@@ -40,6 +50,13 @@ func LoadConfig() Config {
 		var p int
 		if _, err := fmt.Sscanf(v, "%d", &p); err == nil && p > 0 {
 			port = int32(p)
+		}
+	}
+	svcPort := int32(80)
+	if v := os.Getenv("K8S_SERVICE_PORT"); v != "" {
+		var p int
+		if _, err := fmt.Sscanf(v, "%d", &p); err == nil && p > 0 && p <= 65535 {
+			svcPort = int32(p)
 		}
 	}
 	timeout := 1800
@@ -70,8 +87,12 @@ func LoadConfig() Config {
 		IngressTLSSecretName: os.Getenv("INGRESS_TLS_SECRET_NAME"),
 		GatewayNamespace:     getenvDefault("GATEWAY_NAMESPACE", "istio-system"),
 		GatewayName:          os.Getenv("GATEWAY_NAME"),
+		GatewaySectionName:   getenvDefault("GATEWAY_SECTION_NAME", "http"),
+		PublicHostSubdomainPrefix: strings.TrimSpace(os.Getenv("PUBLIC_HOST_SUBDOMAIN_PREFIX")),
+		PublicURLUseHTTPS:         strings.EqualFold(os.Getenv("PUBLIC_URL_USE_HTTPS"), "true"),
 		KanikoImage:          kaniko,
 		AppContainerPort:     port,
+		K8sServicePort:       svcPort,
 		BuildJobTimeoutSec:   timeout,
 		SkipHarborTLSVerify:  strings.EqualFold(os.Getenv("ORCHESTRATOR_SKIP_HARBOR_TLS_VERIFY"), "true"),
 		DefaultGitRef:        gitRef,

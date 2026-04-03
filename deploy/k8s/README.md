@@ -8,18 +8,50 @@ kubectl apply -f rbac.yaml
 ```
 
 - **Namespace** `user-apps` must exist before the orchestrator runs (`K8S_NAMESPACE=user-apps`).
-- **RBAC** binds `ServiceAccount` `go-vercel-orchestrator` in `default` to a **Role** in `user-apps`. Adjust namespaces if you run the orchestrator elsewhere.
-- **Harbor credentials** are created at runtime as Secret `harbor-regcred` in `user-apps` from `HARBOR_*` env vars (no manifest needed for that secret).
+- **RBAC** binds **ServiceAccount** `go-vercel-orchestrator` in **user-apps** to a **Role** in `user-apps` (Jobs, Deployments, Services, Ingresses, **HTTPRoutes**).
+- **Harbor credentials** for Kaniko are created at runtime as Secret `harbor-regcred` in `user-apps` from `HARBOR_*` env vars (no manifest needed for that secret).
 
-## Ingress
+## Ingress / Gateway
 
-Install an ingress controller (e.g. nginx-ingress) and set:
+Install an ingress controller **or** use Istio Gateway API.
 
-- `INGRESS_BASE_DOMAIN` (e.g. `apps.example.com`)
-- `INGRESS_CLASS_NAME` to match your controller
-- Optional `INGRESS_TLS_SECRET_NAME` for HTTPS (wildcard cert in the same namespace as Ingress)
+- `INGRESS_BASE_DOMAIN` (e.g. `launchpad.neev.work`)
+- `INGRESS_CLASS_NAME` when using classic Ingress
+- `GATEWAY_NAME` / `GATEWAY_NAMESPACE` / `GATEWAY_SECTION_NAME` when using **HTTPRoute** (see `deploy/vars.env.example`)
 
-DNS: `*.{INGRESS_BASE_DOMAIN}` must resolve to the ingress load balancer.
+DNS: `*.{INGRESS_BASE_DOMAIN}` must resolve to your edge (nginx, load balancer, or NodePort).
+
+## Run the orchestrator in the cluster
+
+1. Build and push the image (from **repository root**):
+
+   ```bash
+   docker build -f deploy/Dockerfile -t YOUR_REGISTRY/hackthon/go-vercel-orchestrator:latest .
+   docker push YOUR_REGISTRY/hackthon/go-vercel-orchestrator:latest
+   ```
+
+2. Edit `orchestrator-deployment.yaml` if your image name differs.
+
+3. Create secrets (do not commit real files):
+
+   ```bash
+   cp orchestrator-secrets.example.yaml orchestrator-secrets.yaml
+   # edit orchestrator-secrets.yaml, then:
+   kubectl apply -f orchestrator-secrets.yaml
+   ```
+
+4. Apply ConfigMap and Deployment:
+
+   ```bash
+   kubectl apply -f orchestrator-configmap.yaml
+   kubectl apply -f orchestrator-deployment.yaml
+   ```
+
+The Service DNS name inside the cluster is:
+
+`http://go-vercel-orchestrator.user-apps.svc.cluster.local:8081`
+
+User applications (any Dockerfile: APIs, SPAs, static sites) are deployed via **`POST /deploy-app`** on the orchestrator (see `deploy/scripts/test-deploy-app.sh` and `deploy/samples/user-static-frontend/`).
 
 ## Manual Kaniko test
 
