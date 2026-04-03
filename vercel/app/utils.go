@@ -10,6 +10,7 @@ import (
 	"net/mail"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/NikhilSharmaWe/go-vercel-app/vercel/models"
 	"github.com/NikhilSharmaWe/go-vercel-app/vercel/store"
@@ -67,6 +68,20 @@ func NewApplication() (*Application, error) {
 		OrchestratorHTTPTimeout:  orchTimeout,
 		OrchestratorDeployPath:   deployPath,
 	}, nil
+}
+
+// DisplayPublicURL returns the URL shown in the UI. If LAUNCHPAD_PUBLIC_APP_URL_TEMPLATE is set
+// (e.g. https://svc-{projectId}.launchpad.neev.work), it overrides the host from the orchestrator
+// when that service still has a placeholder INGRESS_BASE_DOMAIN (e.g. apps.example.com).
+func (app *Application) DisplayPublicURL(projectID, orchestratorURL string) string {
+	tpl := strings.TrimSpace(os.Getenv("LAUNCHPAD_PUBLIC_APP_URL_TEMPLATE"))
+	if tpl == "" {
+		return orchestratorURL
+	}
+	return strings.NewReplacer(
+		"{projectId}", projectID,
+		"{projectID}", projectID,
+	).Replace(tpl)
 }
 
 func createDB() *gorm.DB {

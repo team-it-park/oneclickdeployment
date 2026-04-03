@@ -2,15 +2,17 @@ package main
 
 import (
 	"log"
+	"strings"
 
 	"github.com/NikhilSharmaWe/go-vercel-app/deploy/app"
 	"github.com/joho/godotenv"
 )
 
 func init() {
-	// In Kubernetes/containers we inject env vars directly; vars.env is optional (local dev).
-	if err := godotenv.Load("vars.env"); err != nil {
-		log.Println("vars.env not loaded:", err)
+	for _, p := range []string{"vars.env", "/app/vars.env"} {
+		if err := godotenv.Load(p); err == nil {
+			return
+		}
 	}
 }
 
@@ -18,6 +20,9 @@ func main() {
 	cfg := app.LoadConfig()
 	if cfg.ListenAddr == "" {
 		log.Fatal("ADDR must be set (e.g. :8081)")
+	}
+	if cfg.IngressBaseDomain != "" && strings.Contains(cfg.IngressBaseDomain, "example.com") {
+		log.Printf("warning: INGRESS_BASE_DOMAIN=%q looks like a placeholder; HTTPRoute/Ingress hostnames will not match a real cluster. Set INGRESS_BASE_DOMAIN and PUBLIC_HOST_SUBDOMAIN_PREFIX to match deploy/k8s/orchestrator-configmap.yaml (e.g. launchpad.neev.work + svc).", cfg.IngressBaseDomain)
 	}
 
 	k8s, err := app.K8sClient()

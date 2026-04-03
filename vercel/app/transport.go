@@ -322,7 +322,8 @@ func (app *Application) HandleProcessing(c echo.Context) error {
 		return nil
 	}
 
-	log.Printf("Project: %s deployed at %s", projectID, publicURL)
-	_ = writeJSON(map[string]string{"type": "done", "url": publicURL})
+	displayURL := app.DisplayPublicURL(projectID, publicURL)
+	log.Printf("Project: %s deployed at %s", projectID, displayURL)
+	_ = writeJSON(map[string]string{"type": "done", "url": displayURL})
 	return nil
 }

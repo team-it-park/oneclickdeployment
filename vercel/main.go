@@ -9,9 +9,11 @@ import (
 )
 
 func init() {
-	// In Kubernetes/containers we inject env vars directly; vars.env is optional (local dev).
-	if err := godotenv.Load("vars.env"); err != nil {
-		log.Println("vars.env not loaded:", err)
+	// Optional file for local dev; in K8s use env from the Deployment/ConfigMap only.
+	for _, p := range []string{"vars.env", "/app/vars.env"} {
+		if err := godotenv.Load(p); err == nil {
+			return
+		}
 	}
 }
 
