@@ -19,8 +19,8 @@ func (o *Orchestrator) httpRouteName(projectID string) string {
 }
 
 // applyHTTPRoute creates/updates a Gateway API HTTPRoute that attaches to the configured Gateway
-// and routes publicHostname(projectID) to svc-{projectID} on K8sServicePort in the workload namespace.
-func (o *Orchestrator) applyHTTPRoute(ctx context.Context, projectID string) error {
+// and routes publicHostname(projectID) to svc-{projectID} on servicePort in the workload namespace.
+func (o *Orchestrator) applyHTTPRoute(ctx context.Context, projectID string, servicePort int32) error {
 	if o.Config.IngressBaseDomain == "" {
 		return fmt.Errorf("INGRESS_BASE_DOMAIN is required")
 	}
@@ -73,7 +73,7 @@ func (o *Orchestrator) applyHTTPRoute(ctx context.Context, projectID string) err
 								"kind":      "Service",
 								"name":      serviceName(projectID),
 								"namespace": ns,
-								"port":      int64(o.Config.K8sServicePort),
+								"port":      int64(servicePort),
 								"weight":    1,
 							},
 						},

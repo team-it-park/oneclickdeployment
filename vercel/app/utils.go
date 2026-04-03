@@ -117,6 +117,32 @@ func getSession(c echo.Context, key string) (string, error) {
 	return v.(string), nil
 }
 
+// clearDeploySessionKeys removes prior deploy form state so a new deploy does not reuse stale values.
+func clearDeploySessionKeys(c echo.Context) {
+	session := c.Get("session").(*sessions.Session)
+	for _, k := range []string{
+		"repo_endpoint", "project_id", "git_ref",
+		"dockerfile", "dockerfile_content", "dockerfile_tmp",
+		"container_port", "service_port",
+	} {
+		delete(session.Values, k)
+	}
+}
+
+// getSessionOptional returns a string session value; missing or wrong type yields ("", nil).
+func getSessionOptional(c echo.Context, key string) (string, error) {
+	session := c.Get("session").(*sessions.Session)
+	v, ok := session.Values[key]
+	if !ok {
+		return "", nil
+	}
+	s, ok := v.(string)
+	if !ok {
+		return "", nil
+	}
+	return s, nil
+}
+
 func clearSessionHandler(c echo.Context) error {
 	session := c.Get("session").(*sessions.Session)
 	session.Options.MaxAge = -1

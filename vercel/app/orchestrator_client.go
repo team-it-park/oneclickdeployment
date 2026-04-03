@@ -21,21 +21,52 @@ type orchestratorStreamLine struct {
 	Error     string `json:"error,omitempty"`
 }
 
+// DeployAppOptions are optional fields for POST /deploy-app (per-app build/runtime config).
+// Zero values are omitted from the JSON body so the orchestrator uses its env defaults.
+type DeployAppOptions struct {
+	GitRef             string
+	Dockerfile         string
+	DockerfileContent  string
+	ContainerPort      int
+	ServicePort        int
+}
+
 // CallOrchestratorBuildDeploy POSTs to the orchestrator and parses NDJSON lines.
 // It invokes onPhase for each {"phase":"..."} line before the terminal line.
-func (app *Application) CallOrchestratorBuildDeploy(ctx context.Context, repoURL, projectID string, onPhase func(string) error) (publicURL string, err error) {
+// opts may be nil; app-level ORCHESTRATOR_DEFAULT_GIT_REF applies when opts.GitRef is empty.
+func (app *Application) CallOrchestratorBuildDeploy(ctx context.Context, repoURL, projectID string, opts *DeployAppOptions, onPhase func(string) error) (publicURL string, err error) {
 	base := strings.TrimSuffix(app.OrchestratorAddr, "/")
 	if base == "" {
 		return "", fmt.Errorf("ORCHESTRATOR_ADDR is not set")
 	}
 	u := base + app.OrchestratorDeployPath
 
-	body := map[string]string{
+	body := map[string]interface{}{
 		"githubRepoEndpoint": repoURL,
 		"projectID":          projectID,
 	}
-	if app.OrchestratorGitRef != "" {
-		body["gitRef"] = app.OrchestratorGitRef
+	gitRef := ""
+	if opts != nil && opts.GitRef != "" {
+		gitRef = opts.GitRef
+	}
+	if gitRef == "" && app.OrchestratorGitRef != "" {
+		gitRef = app.OrchestratorGitRef
+	}
+	if gitRef != "" {
+		body["gitRef"] = gitRef
+	}
+	if opts != nil {
+		if opts.DockerfileContent != "" {
+			body["dockerfileContent"] = opts.DockerfileContent
+		} else if opts.Dockerfile != "" {
+			body["dockerfile"] = opts.Dockerfile
+		}
+		if opts.ContainerPort > 0 {
+			body["containerPort"] = opts.ContainerPort
+		}
+		if opts.ServicePort > 0 {
+			body["servicePort"] = opts.ServicePort
+		}
 	}
 	raw, err := json.Marshal(body)
 	if err != nil {

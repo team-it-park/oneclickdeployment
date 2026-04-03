@@ -11,34 +11,92 @@
 		<div class="topbar">
 			<div class="brand">
 				<div class="logo" aria-hidden="true"></div>
-				<div>LaunchPad <span class="subtle">one‑click deployments</span></div>
+				<div>LaunchPad <span class="subtle">live deployment</span></div>
 			</div>
 			<div class="actions">
+				<a class="btn" href="/home">← New deploy</a>
 				<a class="btn danger" href="/logout">Logout</a>
 			</div>
 		</div>
 
-	<div class="container">
-			<div class="grid">
-				<div class="card">
-					<h1>Deploying…</h1>
-					<p class="small muted">Keep this tab open. You’ll see live progress updates here.</p>
-					<div class="divider"></div>
-					<div id="status" class="status" aria-live="polite"></div>
-				</div>
-				<div class="card">
-					<h2>Phases</h2>
-					<div class="stack small">
-						<div class="pill"><span class="kbd">building</span> your app</div>
-						<div class="pill"><span class="kbd">deploying</span> it live</div>
-						<div class="pill"><span class="kbd">deployed</span> URL ready</div>
+		<div class="container container-wide">
+			<div class="deploy-grid">
+				<section class="card card-hero">
+					<div class="pipeline-header">
+						<h1 id="pipeline-title">Deploying your app</h1>
+						<p id="pipeline-sub" class="small muted">Streaming build steps from the orchestrator. Keep this tab open.</p>
 					</div>
-					<div class="divider"></div>
-					<p class="small muted">If you’re running UI-only mode, deployments will show an error until the deployment service is running.</p>
+
+					<ol class="pipeline" id="pipeline" aria-label="Deployment pipeline">
+						<li class="pipeline-step" data-step="connect">
+							<span class="pipeline-step__idx">1</span>
+							<div class="pipeline-step__body">
+								<strong>Connect</strong>
+								<span class="pipeline-step__hint">WebSocket &amp; session</span>
+							</div>
+							<span class="pipeline-step__state" id="state-connect">…</span>
+						</li>
+						<li class="pipeline-step" data-step="build">
+							<span class="pipeline-step__idx">2</span>
+							<div class="pipeline-step__body">
+								<strong>Build</strong>
+								<span class="pipeline-step__hint">Kaniko → Harbor</span>
+							</div>
+							<span class="pipeline-step__state" id="state-build">…</span>
+						</li>
+						<li class="pipeline-step" data-step="deploy">
+							<span class="pipeline-step__idx">3</span>
+							<div class="pipeline-step__body">
+								<strong>Deploy</strong>
+								<span class="pipeline-step__hint">Workload → Service → route</span>
+							</div>
+							<span class="pipeline-step__state" id="state-deploy">…</span>
+						</li>
+						<li class="pipeline-step" data-step="live">
+							<span class="pipeline-step__idx">4</span>
+							<div class="pipeline-step__body">
+								<strong>Live</strong>
+								<span class="pipeline-step__hint">Public URL</span>
+							</div>
+							<span class="pipeline-step__state" id="state-live">…</span>
+						</li>
+					</ol>
+
+					<div id="result-banner" class="result-banner hidden" role="status">
+						<div class="result-banner__title">Deployment ready</div>
+						<div class="result-banner__url" id="public-url"></div>
+						<a class="btn primary" id="open-url" href="#" target="_blank" rel="noopener noreferrer">Open site</a>
+					</div>
+					<div id="error-banner" class="error-banner hidden" role="alert"></div>
+				</section>
+
+				<div class="card meta-card">
+					<h2>Request</h2>
+					<dl class="meta-dl" id="meta-panel">
+						<dt>Repository</dt>
+						<dd id="meta-repo">—</dd>
+						<dt>Project ID</dt>
+						<dd id="meta-project">—</dd>
+						<dt>Git ref</dt>
+						<dd id="meta-ref">—</dd>
+						<dt>Dockerfile</dt>
+						<dd id="meta-dockerfile">—</dd>
+						<dt>Ports</dt>
+						<dd id="meta-ports">—</dd>
+					</dl>
+				</div>
+
+				<div class="card terminal-card">
+					<div class="terminal-head">
+						<span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+						<span class="terminal-title">activity.log</span>
+						<span class="terminal-live" id="live-badge">● live</span>
+					</div>
+					<div class="terminal" id="terminal" aria-live="polite" aria-relevant="additions"></div>
 				</div>
 			</div>
 		</div>
-    </div>
+	</div>
 </body>
 <script type="text/javascript" src="/assets/processing/processing.js"></script>
 </html>

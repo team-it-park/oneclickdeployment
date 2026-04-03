@@ -42,6 +42,10 @@ type Config struct {
 	BuildJobTimeoutSec   int
 	SkipHarborTLSVerify  bool
 	DefaultGitRef        string
+	// KanikoDockerfile is the default --dockerfile path relative to repo root when the request omits "dockerfile".
+	KanikoDockerfile string
+	// MaxDockerfileContentBytes caps dockerfileContent JSON body size (default 524288).
+	MaxDockerfileContentBytes int
 }
 
 func LoadConfig() Config {
@@ -74,6 +78,17 @@ func LoadConfig() Config {
 	if gitRef == "" {
 		gitRef = "refs/heads/main"
 	}
+	kanikoDockerfile := os.Getenv("KANIKO_DOCKERFILE")
+	if kanikoDockerfile == "" {
+		kanikoDockerfile = "Dockerfile"
+	}
+	maxDF := 524288
+	if v := os.Getenv("MAX_DOCKERFILE_CONTENT_BYTES"); v != "" {
+		var n int
+		if _, err := fmt.Sscanf(v, "%d", &n); err == nil && n > 0 && n <= 1048576 {
+			maxDF = n
+		}
+	}
 	return Config{
 		ListenAddr:           os.Getenv("ADDR"),
 		SharedSecret:         os.Getenv("ORCHESTRATOR_SHARED_SECRET"),
@@ -96,6 +111,8 @@ func LoadConfig() Config {
 		BuildJobTimeoutSec:   timeout,
 		SkipHarborTLSVerify:  strings.EqualFold(os.Getenv("ORCHESTRATOR_SKIP_HARBOR_TLS_VERIFY"), "true"),
 		DefaultGitRef:        gitRef,
+		KanikoDockerfile:          kanikoDockerfile,
+		MaxDockerfileContentBytes: maxDF,
 	}
 }
 

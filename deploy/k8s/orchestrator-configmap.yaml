@@ -18,6 +18,8 @@ data:
   GATEWAY_SECTION_NAME: "http"
   PUBLIC_HOST_SUBDOMAIN_PREFIX: "svc"
   KANIKO_IMAGE: "gcr.io/kaniko-project/executor:v1.23.2"
+  # Default Dockerfile path in the repo when clients omit "dockerfile" in POST /deploy-app.
+  KANIKO_DOCKERFILE: "Dockerfile"
   APP_CONTAINER_PORT: "8080"
   K8S_SERVICE_PORT: "80"
   BUILD_JOB_TIMEOUT_SEC: "1800"

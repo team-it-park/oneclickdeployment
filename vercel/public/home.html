@@ -23,13 +23,38 @@
 				<div class="card">
 					<h1>Deploy a Git repository</h1>
 					<p>Paste a <b>public</b> GitHub repo URL. We’ll build it and publish a live URL.</p>
-					<p class="small muted">Requirement: the repository must be <b>public</b> and must include a <span class="kbd">Dockerfile</span>.</p>
+					<p class="small muted">The repository must be <b>public</b>. Use a <span class="kbd">Dockerfile</span> in the repo, or paste one below (not both).</p>
 					<div class="divider"></div>
-					<form method="post" action="/deploy">
+					<form method="post" action="/deploy" onsubmit="try{var dc=(document.getElementById('dockerfile-content')&&document.getElementById('dockerfile-content').value||'').trim();var dp=(document.getElementById('dockerfile')&&document.getElementById('dockerfile').value||'').trim();sessionStorage.setItem('deploy_repo',document.getElementById('repo-endpoint').value||'');sessionStorage.setItem('deploy_git_ref',document.getElementById('git-ref')?.value||'');sessionStorage.setItem('deploy_dockerfile',dc?'(inline)':dp);sessionStorage.setItem('deploy_cp',document.getElementById('container-port')?.value||'');sessionStorage.setItem('deploy_sp',document.getElementById('service-port')?.value||'');}catch(e){}">
 						<div class="field">
 							<label for="repo-endpoint">GitHub Repository URL</label>
 							<input type="text" id="repo-endpoint" name="repo-endpoint" placeholder="https://github.com/org/repo" required>
 						</div>
+						<details class="field" style="margin-top:10px;">
+							<summary class="small muted" style="cursor:pointer;">Advanced (optional)</summary>
+							<div class="stack" style="margin-top:10px;">
+								<div class="field">
+									<label for="git-ref">Git ref</label>
+									<input type="text" id="git-ref" name="git-ref" placeholder="refs/heads/main">
+								</div>
+								<div class="field">
+									<label for="dockerfile">Dockerfile path in repo</label>
+									<input type="text" id="dockerfile" name="dockerfile" placeholder="Dockerfile" autocomplete="off">
+								</div>
+								<div class="field">
+									<label for="dockerfile-content">Or paste Dockerfile (replaces path above)</label>
+									<textarea id="dockerfile-content" name="dockerfile-content" rows="6" placeholder="Leave empty to use the path in the repo" spellcheck="false"></textarea>
+								</div>
+								<div class="field">
+									<label for="container-port">Container port</label>
+									<input type="number" id="container-port" name="container-port" min="1" max="65535" placeholder="e.g. 8080 or 3000">
+								</div>
+								<div class="field">
+									<label for="service-port">Kubernetes Service port</label>
+									<input type="number" id="service-port" name="service-port" min="1" max="65535" placeholder="usually 80">
+								</div>
+							</div>
+						</details>
 						<div class="row" style="justify-content:flex-end;margin-top:14px;">
 							<button class="btn primary" type="submit">Deploy</button>
 						</div>
@@ -40,7 +65,7 @@
 					<h2>Repo requirements</h2>
 					<div class="stack small">
 						<div class="pill">Repository must be <span class="kbd">public</span></div>
-						<div class="pill">Must include <span class="kbd">Dockerfile</span></div>
+						<div class="pill">Repo <span class="kbd">Dockerfile</span> or paste inline</div>
 						<div class="pill">App must expose an HTTP server</div>
 						<div class="pill">Build happens remotely</div>
 					</div>

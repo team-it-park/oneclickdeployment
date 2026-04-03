@@ -2,10 +2,12 @@ package app
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/NikhilSharmaWe/go-vercel-app/vercel/models"
@@ -142,16 +144,64 @@ func (app *Application) HandleLogout(c echo.Context) error {
 	return nil
 }
 
-func (app *Application) HandleDeploy(c echo.Context) error {
-	var (
-		repoEndpoint = c.FormValue("repo-endpoint")
-		projectID    = generateID(5)
-	)
+const (
+	maxDockerfileContentBytes = 524288
+	maxDockerfileInSession    = 3500
+)
 
-	if err := setSession(c, map[string]any{
+func (app *Application) HandleDeploy(c echo.Context) error {
+	clearDeploySessionKeys(c)
+
+	repoEndpoint := c.FormValue("repo-endpoint")
+	projectID := generateID(5)
+	sess := map[string]any{
 		"repo_endpoint": repoEndpoint,
 		"project_id":    projectID,
-	}); err != nil {
+	}
+	if v := strings.TrimSpace(c.FormValue("git-ref")); v != "" {
+		sess["git_ref"] = v
+	}
+	dfPath := strings.TrimSpace(c.FormValue("dockerfile"))
+	dfContent := strings.TrimSpace(c.FormValue("dockerfile-content"))
+	if dfPath != "" && dfContent != "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "specify either Dockerfile path or inline Dockerfile, not both")
+	}
+	if dfContent != "" {
+		if len(dfContent) > maxDockerfileContentBytes {
+			return echo.NewHTTPError(http.StatusBadRequest, "inline Dockerfile exceeds maximum size")
+		}
+		if len(dfContent) <= maxDockerfileInSession {
+			sess["dockerfile_content"] = dfContent
+		} else {
+			f, err := os.CreateTemp("", "lp-df-*")
+			if err != nil {
+				c.Logger().Error(err)
+				return err
+			}
+			if _, err := f.WriteString(dfContent); err != nil {
+				_ = f.Close()
+				_ = os.Remove(f.Name())
+				c.Logger().Error(err)
+				return err
+			}
+			if err := f.Close(); err != nil {
+				_ = os.Remove(f.Name())
+				c.Logger().Error(err)
+				return err
+			}
+			sess["dockerfile_tmp"] = f.Name()
+		}
+	} else if dfPath != "" {
+		sess["dockerfile"] = dfPath
+	}
+	if v := strings.TrimSpace(c.FormValue("container-port")); v != "" {
+		sess["container_port"] = v
+	}
+	if v := strings.TrimSpace(c.FormValue("service-port")); v != "" {
+		sess["service_port"] = v
+	}
+
+	if err := setSession(c, sess); err != nil {
 		c.Logger().Error(err)
 		return err
 	}
@@ -193,24 +243,86 @@ func (app *Application) HandleProcessing(c echo.Context) error {
 	writeWS := func(msg string) error {
 		return conn.WriteMessage(websocket.TextMessage, []byte(msg))
 	}
+	writeJSON := func(v interface{}) error {
+		b, err := json.Marshal(v)
+		if err != nil {
+			return err
+		}
+		return writeWS(string(b))
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), app.orchestratorHTTPTimeout()+2*time.Minute)
 	defer cancel()
 
-	publicURL, err := app.CallOrchestratorBuildDeploy(ctx, repoEndpoint, projectID, func(phase string) error {
+	opts := &DeployAppOptions{}
+	if s, _ := getSessionOptional(c, "git_ref"); s != "" {
+		opts.GitRef = s
+	}
+	if s, _ := getSessionOptional(c, "dockerfile_content"); s != "" {
+		opts.DockerfileContent = s
+	}
+	if p, _ := getSessionOptional(c, "dockerfile_tmp"); p != "" {
+		defer os.Remove(p)
+		b, err := os.ReadFile(p)
+		if err != nil {
+			c.Logger().Error(err)
+			_ = writeJSON(map[string]string{"type": "error", "message": "could not read inline Dockerfile"})
+			return nil
+		}
+		opts.DockerfileContent = string(b)
+	}
+	if s, _ := getSessionOptional(c, "dockerfile"); s != "" {
+		opts.Dockerfile = s
+	}
+	if s, _ := getSessionOptional(c, "container_port"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			opts.ContainerPort = n
+		}
+	}
+	if s, _ := getSessionOptional(c, "service_port"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			opts.ServicePort = n
+		}
+	}
+
+	meta := map[string]interface{}{
+		"type":       "meta",
+		"projectId":  projectID,
+		"repository": repoEndpoint,
+	}
+	if opts.GitRef != "" {
+		meta["gitRef"] = opts.GitRef
+	}
+	if opts.DockerfileContent != "" {
+		meta["inlineDockerfile"] = true
+		meta["dockerfile"] = "(inline)"
+	} else if opts.Dockerfile != "" {
+		meta["dockerfile"] = opts.Dockerfile
+	}
+	if opts.ContainerPort > 0 {
+		meta["containerPort"] = opts.ContainerPort
+	}
+	if opts.ServicePort > 0 {
+		meta["servicePort"] = opts.ServicePort
+	}
+	if err := writeJSON(meta); err != nil {
+		c.Logger().Error(err)
+		return nil
+	}
+
+	publicURL, err := app.CallOrchestratorBuildDeploy(ctx, repoEndpoint, projectID, opts, func(phase string) error {
 		log.Printf("Project: %s phase: %s", projectID, phase)
-		return writeWS(phase)
+		return writeJSON(map[string]string{"type": "phase", "phase": phase})
 	})
 	if err != nil {
 		// IMPORTANT: after websocket upgrade (connection hijack), do not return an HTTP error
 		// or Echo will try to write an HTTP response on a hijacked connection.
 		c.Logger().Error(err)
-		_ = writeWS("error: " + err.Error())
+		_ = writeJSON(map[string]string{"type": "error", "message": err.Error()})
 		return nil
 	}
 
 	log.Printf("Project: %s deployed at %s", projectID, publicURL)
-	_ = writeWS("deployed")
-	_ = writeWS(fmt.Sprintf("WEBSITE ENDPOINT IS: %s", publicURL))
+	_ = writeJSON(map[string]string{"type": "done", "url": publicURL})
 	return nil
 }
