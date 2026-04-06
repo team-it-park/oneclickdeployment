@@ -5,6 +5,33 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<link rel="stylesheet" href="/assets/app.css">
 	<title>LaunchPad • Deploying</title>
+	<style>
+		/* AI pipeline step accent */
+		.pipeline-step--ai .pipeline-step__idx { background: linear-gradient(135deg, #7c3aed, #2563eb); }
+		.pipeline-step--ai.is-active { border-left-color: #7c3aed; }
+		.pipeline-step--ai.is-done .pipeline-step__idx { background: #059669; }
+		/* Monitor notes block */
+		.pipeline-step__notes {
+			font-size: 0.78rem;
+			color: var(--c-muted, #8b95a1);
+			margin-top: 6px;
+			line-height: 1.5;
+			white-space: pre-wrap;
+			word-break: break-word;
+		}
+		/* Health badge inside monitor notes */
+		.health-badge {
+			display: inline-block;
+			padding: 1px 7px;
+			border-radius: 12px;
+			font-size: 0.72rem;
+			font-weight: 600;
+			margin-right: 6px;
+		}
+		.health-ok   { background: #d1fae5; color: #065f46; }
+		.health-warn { background: #fef3c7; color: #92400e; }
+		.health-err  { background: #fee2e2; color: #991b1b; }
+	</style>
 </head>
 <body>
 	<div class="page">
@@ -28,37 +55,85 @@
 					</div>
 
 					<ol class="pipeline" id="pipeline" aria-label="Deployment pipeline">
+						<!-- Step 1: always shown -->
 						<li class="pipeline-step" data-step="connect">
 							<span class="pipeline-step__idx">1</span>
 							<div class="pipeline-step__body">
 								<strong>Connect</strong>
 								<span class="pipeline-step__hint">WebSocket &amp; session</span>
 							</div>
-							<span class="pipeline-step__state" id="state-connect">…</span>
+							<span class="pipeline-step__state">…</span>
 						</li>
-						<li class="pipeline-step" data-step="build">
+
+						<!-- AI pipeline steps: hidden until the orchestrator emits the phase -->
+						<li class="pipeline-step pipeline-step--ai" data-step="analyze" style="display:none">
 							<span class="pipeline-step__idx">2</span>
+							<div class="pipeline-step__body">
+								<strong>Analyze</strong>
+								<span class="pipeline-step__hint">Detect language &amp; framework</span>
+							</div>
+							<span class="pipeline-step__state">…</span>
+						</li>
+						<li class="pipeline-step pipeline-step--ai" data-step="generate" style="display:none">
+							<span class="pipeline-step__idx">3</span>
+							<div class="pipeline-step__body">
+								<strong>Generate</strong>
+								<span class="pipeline-step__hint">AI Dockerfile generation</span>
+							</div>
+							<span class="pipeline-step__state">…</span>
+						</li>
+						<li class="pipeline-step pipeline-step--ai" data-step="secure" style="display:none">
+							<span class="pipeline-step__idx">4</span>
+							<div class="pipeline-step__body">
+								<strong>Security scan</strong>
+								<span class="pipeline-step__hint">Secrets &amp; CVE check</span>
+							</div>
+							<span class="pipeline-step__state">…</span>
+						</li>
+						<li class="pipeline-step pipeline-step--ai" data-step="configure" style="display:none">
+							<span class="pipeline-step__idx">5</span>
+							<div class="pipeline-step__body">
+								<strong>Configure</strong>
+								<span class="pipeline-step__hint">K8s resource optimisation</span>
+							</div>
+							<span class="pipeline-step__state">…</span>
+						</li>
+
+						<!-- Always-shown pipeline steps -->
+						<li class="pipeline-step" data-step="build">
+							<span class="pipeline-step__idx">6</span>
 							<div class="pipeline-step__body">
 								<strong>Build</strong>
 								<span class="pipeline-step__hint">Kaniko → Harbor</span>
 							</div>
-							<span class="pipeline-step__state" id="state-build">…</span>
+							<span class="pipeline-step__state">…</span>
 						</li>
 						<li class="pipeline-step" data-step="deploy">
-							<span class="pipeline-step__idx">3</span>
+							<span class="pipeline-step__idx">7</span>
 							<div class="pipeline-step__body">
 								<strong>Deploy</strong>
 								<span class="pipeline-step__hint">Workload → Service → route</span>
 							</div>
-							<span class="pipeline-step__state" id="state-deploy">…</span>
+							<span class="pipeline-step__state">…</span>
 						</li>
 						<li class="pipeline-step" data-step="live">
-							<span class="pipeline-step__idx">4</span>
+							<span class="pipeline-step__idx">8</span>
 							<div class="pipeline-step__body">
 								<strong>Live</strong>
 								<span class="pipeline-step__hint">Public URL</span>
 							</div>
-							<span class="pipeline-step__state" id="state-live">…</span>
+							<span class="pipeline-step__state">…</span>
+						</li>
+
+						<!-- Monitor step: appears ~30s after deploy when AI pipeline is active -->
+						<li class="pipeline-step pipeline-step--ai" data-step="monitor" style="display:none">
+							<span class="pipeline-step__idx">9</span>
+							<div class="pipeline-step__body">
+								<strong>Monitor</strong>
+								<span class="pipeline-step__hint">Post-deploy health probe</span>
+								<div class="pipeline-step__notes" id="monitor-notes" style="display:none"></div>
+							</div>
+							<span class="pipeline-step__state">…</span>
 						</li>
 					</ol>
 

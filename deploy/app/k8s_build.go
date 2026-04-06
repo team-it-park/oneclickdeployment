@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -283,10 +285,69 @@ func (o *Orchestrator) runKanikoJob(ctx context.Context, projectID, gitContext, 
 	})
 }
 
-func buildDeployment(projectID, imageRef string, port int32) *appsv1.Deployment {
+// deployConfig carries AI-suggested resource and health-check configuration
+// from the ConfigAgent into the Deployment builder.
+type deployConfig struct {
+	CPURequest      string // e.g. "250m"
+	CPULimit        string // e.g. "500m"
+	MemoryRequest   string // e.g. "256Mi"
+	MemoryLimit     string // e.g. "512Mi"
+	HealthCheckPath string // e.g. "/health"
+}
+
+func defaultDeployConfig() deployConfig {
+	return deployConfig{
+		CPURequest:      "250m",
+		CPULimit:        "500m",
+		MemoryRequest:   "256Mi",
+		MemoryLimit:     "512Mi",
+		HealthCheckPath: "/health",
+	}
+}
+
+// parseQuantitySafe parses a resource.Quantity string, returning a zero value
+// and logging a warning on parse failure — never panics.
+func parseQuantitySafe(s, fallback string) resource.Quantity {
+	q, err := resource.ParseQuantity(s)
+	if err != nil {
+		log.Printf("[k8s_build] invalid resource quantity %q: %v — using %q", s, err, fallback)
+		q, _ = resource.ParseQuantity(fallback)
+	}
+	return q
+}
+
+func buildDeployment(projectID, imageRef string, port int32, dc deployConfig) *appsv1.Deployment {
 	name := deploymentName(projectID)
 	labels := workloadLabels(projectID)
 	replicas := int32(1)
+
+	resourceReqs := corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceCPU:    parseQuantitySafe(dc.CPURequest, "250m"),
+			corev1.ResourceMemory: parseQuantitySafe(dc.MemoryRequest, "256Mi"),
+		},
+		Limits: corev1.ResourceList{
+			corev1.ResourceCPU:    parseQuantitySafe(dc.CPULimit, "500m"),
+			corev1.ResourceMemory: parseQuantitySafe(dc.MemoryLimit, "512Mi"),
+		},
+	}
+
+	healthPath := dc.HealthCheckPath
+	if healthPath == "" {
+		healthPath = "/health"
+	}
+	livenessProbe := &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			HTTPGet: &corev1.HTTPGetAction{
+				Path: healthPath,
+				Port: intstr.FromInt32(port),
+			},
+		},
+		InitialDelaySeconds: 15,
+		PeriodSeconds:       20,
+		FailureThreshold:    3,
+	}
+
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Labels: labels},
 		Spec: appsv1.DeploymentSpec{
@@ -301,6 +362,8 @@ func buildDeployment(projectID, imageRef string, port int32) *appsv1.Deployment 
 						Image:           imageRef,
 						ImagePullPolicy: corev1.PullAlways,
 						Ports:           []corev1.ContainerPort{{ContainerPort: port}},
+						Resources:       resourceReqs,
+						LivenessProbe:   livenessProbe,
 					}},
 				},
 			},
@@ -308,10 +371,10 @@ func buildDeployment(projectID, imageRef string, port int32) *appsv1.Deployment 
 	}
 }
 
-func (o *Orchestrator) applyDeployment(ctx context.Context, projectID, imageRef string, containerPort int32) error {
+func (o *Orchestrator) applyDeployment(ctx context.Context, projectID, imageRef string, containerPort int32, dc deployConfig) error {
 	ns := o.Config.K8sNamespace
 	name := deploymentName(projectID)
-	desired := buildDeployment(projectID, imageRef, containerPort)
+	desired := buildDeployment(projectID, imageRef, containerPort, dc)
 
 	cur, err := o.K8s.AppsV1().Deployments(ns).Get(ctx, name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
@@ -437,7 +500,9 @@ func (o *Orchestrator) PublicURL(projectID string) string {
 	return fmt.Sprintf("%s://%s", scheme, host)
 }
 
-// BuildDeploy runs the full pipeline. writePhase is called with "building" and "deploying" before each major step.
+// BuildDeploy runs the full pipeline. writePhase is called before each major step.
+// When NEEV_API_KEY is non-empty, an AI agent pipeline runs before Kaniko:
+//   analyzing → generating-dockerfile → security-scan → configuring → building → deploying
 func (o *Orchestrator) BuildDeploy(ctx context.Context, req BuildDeployRequest, writePhase func(string) error) (string, error) {
 	if req.ProjectID == "" || req.GithubRepoEndpoint == "" {
 		return "", fmt.Errorf("projectID and githubRepoEndpoint are required")
@@ -458,27 +523,113 @@ func (o *Orchestrator) BuildDeploy(ctx context.Context, req BuildDeployRequest, 
 	imageRef := FullImageRef(o.Config, req.ProjectID, imageTag)
 	jobName := fmt.Sprintf("kaniko-%s-%d", req.ProjectID, time.Now().UnixNano()%1e9)
 
-	if err := writePhase("building"); err != nil {
-		return "", err
-	}
+	// ── Ensure Kubernetes namespace and Harbor credentials ──────────────────
 	if err := o.ensureNamespace(ctx); err != nil {
 		return "", fmt.Errorf("namespace: %w", err)
 	}
 	if err := o.ensureHarborSecret(ctx); err != nil {
 		return "", fmt.Errorf("harbor secret: %w", err)
 	}
+
+	// ── AI agent pipeline (skipped gracefully when NEEV_API_KEY is empty) ───
+	ac := &AgentContext{
+		RepoURL:   req.GithubRepoEndpoint,
+		ProjectID: req.ProjectID,
+		GitRef:    gitRef,
+	}
+	dc := defaultDeployConfig()
+	apiKey := o.Config.NeevAPIKey
+
+	if apiKey != "" {
+		// Agent 1: Analyze repository
+		if wpErr := writePhase("analyzing"); wpErr != nil {
+			return "", wpErr
+		}
+		if agErr := AnalyzerAgent(ctx, ac, apiKey); agErr != nil {
+			log.Printf("[BuildDeploy] AnalyzerAgent non-fatal error: %v", agErr)
+		}
+
+		// Agent 2: Generate Dockerfile (skipped if repo already has one)
+		if wpErr := writePhase("generating-dockerfile"); wpErr != nil {
+			return "", wpErr
+		}
+		if agErr := BuilderAgent(ctx, ac, apiKey); agErr != nil {
+			log.Printf("[BuildDeploy] BuilderAgent non-fatal error: %v", agErr)
+		}
+
+		// Agent 3: Security scan — fatal only on high-severity findings
+		if wpErr := writePhase("security-scan"); wpErr != nil {
+			return "", wpErr
+		}
+		if agErr := SecurityAgent(ctx, ac, apiKey); agErr != nil {
+			return "", fmt.Errorf("security check failed: %w", agErr)
+		}
+
+		// Agent 4: Suggest K8s resource config
+		if wpErr := writePhase("configuring"); wpErr != nil {
+			return "", wpErr
+		}
+		if agErr := ConfigAgent(ctx, ac, apiKey); agErr != nil {
+			log.Printf("[BuildDeploy] ConfigAgent non-fatal error: %v", agErr)
+		}
+
+		// Agent 5: Pre-deploy validation
+		if agErr := DeployAgent(ctx, ac, apiKey); agErr != nil {
+			return "", fmt.Errorf("deploy agent: %w", agErr)
+		}
+
+		// Propagate AI-suggested resource config into the deployment builder
+		if ac.SuggestedCPU != "" {
+			dc.CPURequest = ac.SuggestedCPU
+			dc.CPULimit = ac.SuggestedCPU // use same value for limit when only one provided
+		}
+		if ac.SuggestedMemory != "" {
+			dc.MemoryRequest = ac.SuggestedMemory
+			dc.MemoryLimit = ac.SuggestedMemory
+		}
+		if ac.HealthCheckPath != "" {
+			dc.HealthCheckPath = ac.HealthCheckPath
+		}
+	}
+
+	// ── Recompute git context if agents detected a different default branch ──
+	// AnalyzerAgent may update ac.GitRef when the configured DEFAULT_GIT_REF
+	// (e.g. "main") doesn't match the repo's actual default branch (e.g. "master").
+	if ac.GitRef != "" && ac.GitRef != gitRef && ac.GitRef != strings.TrimPrefix(gitRef, "refs/heads/") {
+		newRef := ac.GitRef
+		// Kaniko expects a full ref or branch name in the git context URL.
+		log.Printf("[BuildDeploy] agents detected different branch %q (was %q), recomputing git context", newRef, gitRef)
+		gitRef = newRef
+		gitCtx, err = ToGitContext(req.GithubRepoEndpoint, gitRef)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	// ── Resolve dockerfile / port options ────────────────────────────────────
+	// If the BuilderAgent generated a Dockerfile and the request did not already
+	// supply one, inject it as inline content so Kaniko mounts it as a Secret.
+	if ac.GeneratedDockerfile != "" && req.DockerfileContent == "" && req.Dockerfile == "" {
+		req.DockerfileContent = ac.GeneratedDockerfile
+	}
 	dockerfileRel, dockerfileContent, containerPort, servicePort, err := o.resolveDeployOpts(req)
 	if err != nil {
+		return "", err
+	}
+
+	// ── Kaniko build ─────────────────────────────────────────────────────────
+	if err := writePhase("building"); err != nil {
 		return "", err
 	}
 	if err := o.runKanikoJob(ctx, req.ProjectID, gitCtx, imageRef, jobName, dockerfileRel, dockerfileContent); err != nil {
 		return "", fmt.Errorf("kaniko: %w", err)
 	}
 
+	// ── Kubernetes workload apply ─────────────────────────────────────────────
 	if err := writePhase("deploying"); err != nil {
 		return "", err
 	}
-	if err := o.applyDeployment(ctx, req.ProjectID, imageRef, containerPort); err != nil {
+	if err := o.applyDeployment(ctx, req.ProjectID, imageRef, containerPort, dc); err != nil {
 		return "", fmt.Errorf("deployment: %w", err)
 	}
 	if err := o.applyService(ctx, req.ProjectID, servicePort, containerPort); err != nil {
@@ -494,5 +645,13 @@ func (o *Orchestrator) BuildDeploy(ctx context.Context, req BuildDeployRequest, 
 		}
 	}
 
-	return o.PublicURL(req.ProjectID), nil
+	publicURL := o.PublicURL(req.ProjectID)
+
+	// ── Agent 6: Monitor (non-blocking goroutine) ────────────────────────────
+	if apiKey != "" {
+		ac.PublicURL = publicURL
+		go MonitorAgent(context.Background(), ac, apiKey, nil)
+	}
+
+	return publicURL, nil
 }
