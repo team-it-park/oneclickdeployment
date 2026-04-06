@@ -46,6 +46,11 @@ type Config struct {
 	KanikoDockerfile string
 	// MaxDockerfileContentBytes caps dockerfileContent JSON body size (default 524288).
 	MaxDockerfileContentBytes int
+	// NeevAPIKey is the API key for NeevCloud Kimi K2 AI inference.
+	// When non-empty, the AI agent pipeline (Analyze → BuildDockerfile → Security →
+	// Config → Deploy → Monitor) runs before every Kaniko build.
+	// When empty, the pipeline is skipped and Kaniko runs directly.
+	NeevAPIKey string
 }
 
 func LoadConfig() Config {
@@ -113,6 +118,7 @@ func LoadConfig() Config {
 		DefaultGitRef:        gitRef,
 		KanikoDockerfile:          kanikoDockerfile,
 		MaxDockerfileContentBytes: maxDF,
+		NeevAPIKey:                os.Getenv("NEEV_API_KEY"),
 	}
 }
 
@@ -147,10 +153,14 @@ func K8sRestConfig() (*rest.Config, error) {
 
 // DockerConfigJSON builds a Docker config.json for Harbor auth.
 func DockerConfigJSON(registry, username, password string) ([]byte, error) {
+	authKey := registry
+	if registry == "docker.io" {
+		authKey = "https://index.docker.io/v1/"
+	}
 	auth := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
 	cfg := map[string]interface{}{
 		"auths": map[string]interface{}{
-			registry: map[string]string{
+			authKey: map[string]interface{}{
 				"username": username,
 				"password": password,
 				"auth":     auth,
